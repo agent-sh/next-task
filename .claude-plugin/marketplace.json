@@ -1,0 +1,22 @@
+{
+  "name": "next-task",
+  "description": "Master workflow orchestrator: autonomous workflow with model optimization (opus/sonnet/haiku), two-file state management, workflow enforcement gates, 14 specialist agents",
+  "version": "1.0.0",
+  "owner": {
+    "name": "Avi Fenesh",
+    "url": "https://github.com/avifenesh"
+  },
+  "repository": "https://github.com/agent-sh/next-task",
+  "keywords": [
+    "next-task"
+  ],
+  "plugins": [
+    {
+      "name": "next-task",
+      "source": ".",
+      "description": "Master workflow orchestrator: autonomous workflow with model optimization (opus/sonnet/haiku), two-file state management, workflow enforcement gates, 14 specialist agents",
+      "version": "1.0.0",
+      "category": "productivity"
+    }
+  ]
+}
