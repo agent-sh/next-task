@@ -1,7 +1,7 @@
 ---
 description: Master workflow orchestrator with autonomous task-to-production automation
 codex-description: 'Use when user asks to "find next task", "what should I work on", "automate workflow", "implement and ship", "run next-task". Orchestrates complete task-to-production workflow: discovery, implementation, review, and delivery.'
-argument-hint: "[filter] [--status] [--resume] [--abort] [--implement]"
+argument-hint: "[filter] [--status] [--resume] [--abort] [--implement] [--base=BRANCH]"
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(npm:*), Bash(node:*), Read, Write, Edit, Glob, Grep, Task, Skill, AskUserQuestion
 ---
 
@@ -138,6 +138,14 @@ const path = require('path');
 const pluginRoot = getPluginRoot('next-task');
 const workflowState = require(path.join(pluginRoot, 'lib/state/workflow-state.js'));
 const args = '$ARGUMENTS'.split(' ').filter(Boolean);
+
+// --base=BRANCH: override the base branch for this project
+// Default: repo's default branch via git symbolic-ref, fallback to "main"
+const baseArg = args.find(a => a.startsWith('--base='));
+const baseBranchCmd = 'git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null';
+const BASE_BRANCH = baseArg
+  ? baseArg.split('=')[1]
+  : baseBranchCmd.replace('refs/remotes/origin/', '').trim() || 'main';
 
 // No flags → Phase 1 (Policy Selection asks about existing tasks)
 if (args.length === 0) {
@@ -371,7 +379,7 @@ workflowState.startPhase('review-loop');
 ### Step 1: Get Changed Files
 
 ```bash
-git diff --name-only main...HEAD
+git diff --name-only ${BASE_BRANCH}...HEAD
 ```
 
 ### Step 2: Detect Signals for Conditional Specialists

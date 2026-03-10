@@ -54,8 +54,11 @@ if (state?.task) {
   task = await inferTaskFromCommits();
 }
 
+// Get base branch from flow state, fallback to repo default
+const baseBranch = state?.git?.baseBranch || 'main';
+
 // Get changed files
-changedFiles = (await exec('git diff --name-only origin/main..HEAD')).split('\n').filter(Boolean);
+changedFiles = (await run('git', ['diff', '--name-only', `origin/${baseBranch}..HEAD`])).split('\n').filter(Boolean);
 ```
 
 ## Phase 2: Run Validation Checks
@@ -71,7 +74,8 @@ if [ -n "$UNCOMMITTED" ]; then
 fi
 
 # Check if ahead of remote
-AHEAD=$(git rev-list --count origin/main..HEAD)
+BASE_BRANCH="${baseBranch:-main}"
+AHEAD=$(git rev-list --count origin/$BASE_BRANCH..HEAD)
 echo "COMMITS_AHEAD=$AHEAD"
 
 # Check branch name
@@ -247,7 +251,7 @@ const failedChecks = Object.entries(checks)
 
 **Task**: ${task?.title || 'N/A'}
 **Branch**: ${BRANCH}
-**Commits ahead of main**: ${COMMITS_AHEAD}
+**Commits ahead of ${BASE_BRANCH}**: ${COMMITS_AHEAD}
 
 ### Validation Results
 
