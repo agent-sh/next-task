@@ -1,7 +1,7 @@
 ---
 description: Master workflow orchestrator with autonomous task-to-production automation
 codex-description: 'Use when user asks to "find next task", "what should I work on", "automate workflow", "implement and ship", "run next-task". Orchestrates complete task-to-production workflow: discovery, implementation, review, and delivery.'
-argument-hint: "[filter] [--status] [--resume] [--abort] [--implement]"
+argument-hint: "[filter] [--status] [--resume] [--abort] [--implement] [--base=BRANCH]"
 allowed-tools: Bash(git:*), Bash(gh:*), Bash(npm:*), Bash(node:*), Read, Write, Edit, Glob, Grep, Task, Skill, AskUserQuestion
 ---
 
@@ -139,6 +139,17 @@ const pluginRoot = getPluginRoot('next-task');
 const workflowState = require(path.join(pluginRoot, 'lib/state/workflow-state.js'));
 const args = '$ARGUMENTS'.split(' ').filter(Boolean);
 
+// --base=BRANCH: override the base branch for this project
+const baseArg = args.find(a => a.startsWith('--base='));
+let BASE_BRANCH = 'main';
+if (baseArg) {
+  BASE_BRANCH = baseArg.split('=')[1];
+} else {
+  // Detect repo default branch
+  const ref = await run('git', ['symbolic-ref', 'refs/remotes/origin/HEAD']).catch(() => '');
+  BASE_BRANCH = ref.trim().replace('refs/remotes/origin/', '') || 'main';
+}
+
 // No flags → Phase 1 (Policy Selection asks about existing tasks)
 if (args.length === 0) {
   console.log("Starting Phase 1 (Policy Selection)");
@@ -175,8 +186,10 @@ No agent needed. Use AskUserQuestion tool with ALL 3 questions from `lib/sources
 | # | Header | Question | Options |
 |---|--------|----------|---------|
 | 1 | Source | Where should I look for tasks? | GitHub Issues, GitHub Projects, GitLab Issues, Local tasks.md, Custom, Other (+ cached if exists) |
-| 2 | Priority | What type of tasks to prioritize? | All, Bugs, Security, Features |
-| 3 | Stop Point | How far should I take this task? | Merged, PR Created, Implemented, Deployed, Production |
+| 2 | Priority | What type of tasks to prioritize? | All, Bugs, Security, Features, Other (+ cached free-text) |
+| 3 | Stop Point | How far should I take this task? | Merged, PR Created, Implemented, Deployed, Production, Other (+ cached free-text) |
+
+**Free-text caching**: When the user selects "Other" and types a custom response (e.g., "merged to feature/v2"), that response is cached and offered as a named option in subsequent runs. If the user stops selecting it for 3 consecutive runs, it is automatically removed.
 
 **Forbidden Actions:**
 - Skipping any of the 3 questions
@@ -201,7 +214,16 @@ if (sources.needsProjectFollowUp(responses.source)) {
 }
 
 const policy = sources.parseAndCachePolicy(responses);
-workflowState.updateFlow({ policy, phase: 'task-discovery' });
+workflowState.updateFlow({ policy, baseBranch: BASE_BRANCH, phase: 'task-discovery' });
+
+// Gate: verify preference was cached
+const cached = sources.getPreference?.() || sourceCache.getPreference();
+if (!cached) {
+  console.error('[BLOCKED] Policy decision was not persisted to preference cache.');
+  console.error('This is a bug - parseAndCachePolicy should have written the file.');
+  throw new Error('preference-not-cached');
+}
+console.log(`[VERIFIED] Policy cached: source=${cached.source}`);
 ```
 </phase-1>
 
@@ -371,7 +393,7 @@ workflowState.startPhase('review-loop');
 ### Step 1: Get Changed Files
 
 ```bash
-git diff --name-only main...HEAD
+git diff --name-only ${BASE_BRANCH}...HEAD
 ```
 
 ### Step 2: Detect Signals for Conditional Specialists
@@ -535,7 +557,9 @@ After docs update (sync-docs-agent) completes, invoke `ship:ship` explicitly:
 workflowState.startPhase('shipping');
 console.log(`Task #${state.task.id} passed all validation. Invoking ship:ship...`);
 const stateDir = workflowState.getStateDir(); // Returns platform-aware state directory
-await Skill({ name: "ship:ship", args: `--state-file "${stateDir}/flow.json"` });
+const baseBranch = state?.git?.baseBranch;
+const baseArg = baseBranch ? ` --base ${baseBranch}` : '';
+await Skill({ name: "ship:ship", args: `--state-file "${stateDir}/flow.json"${baseArg}` });
 ```
 
 **ship:ship responsibilities:**

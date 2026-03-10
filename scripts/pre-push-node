@@ -1,9 +1,28 @@
 #!/bin/sh
-# Pre-push hook for Node.js projects
-# Runs tests before allowing push
+# Pre-push hook for next-task
+# Runs npm test if available, otherwise validates JS syntax
 
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
-echo "[INFO] Running pre-push tests..."
-npm test
-exit $?
+echo "[INFO] Running pre-push validation..."
+
+if node -e "const p=require('./package.json'); if(!p.scripts?.test) process.exit(1)" 2>/dev/null; then
+  npm test
+  exit $?
+fi
+
+ERRORS=0
+for f in $(find lib -name "*.js" 2>/dev/null); do
+  if ! node -c "$f" 2>/dev/null; then
+    echo "[ERROR] Syntax error in $f"
+    ERRORS=$((ERRORS + 1))
+  fi
+done
+
+if [ $ERRORS -gt 0 ]; then
+  echo "[ERROR] $ERRORS file(s) have syntax errors"
+  exit 1
+fi
+
+echo "[OK] All JS files pass syntax check"
+exit 0

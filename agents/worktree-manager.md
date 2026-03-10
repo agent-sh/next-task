@@ -121,8 +121,8 @@ else
     # Remote branch exists, track it
     git worktree add --track -b "$BRANCH_NAME" "$WORKTREE_PATH" "origin/$BRANCH_NAME"
   else
-    # Create new branch from main
-    git worktree add -b "$BRANCH_NAME" "$WORKTREE_PATH"
+    # Create new branch from BASE_BRANCH (passed by orchestrator, defaults to repo default)
+    git worktree add -b "$BRANCH_NAME" "$WORKTREE_PATH" "origin/$BASE_BRANCH"
   fi
 
   if [ $? -eq 0 ]; then
@@ -188,7 +188,7 @@ echo "WORKTREE_ABSOLUTE_PATH=$(pwd)"
 
 Create `${STATE_DIR}/workflow-status.json` with task, workflow, git info, and resume state.
 
-Key fields: `task` (id, source, title), `workflow` (id, status, currentPhase), `git` (branch, baseSha, mainRepoPath), `resume` (canResume, resumeFromStep).
+Key fields: `task` (id, source, title), `workflow` (id, status, currentPhase), `git` (branch, baseBranch, baseSha, mainRepoPath), `resume` (canResume, resumeFromStep).
 
 ## Phase 9: Update Workflow State
 

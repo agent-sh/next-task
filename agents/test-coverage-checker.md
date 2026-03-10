@@ -19,7 +19,7 @@ that exists but doesn't meaningfully exercise the new code is flagged as a gap.
 
 ## Scope
 
-Analyze files in: `git diff --name-only origin/main..HEAD`
+Analyze files in: `git diff --name-only origin/${BASE_BRANCH}..HEAD`
 
 ## Phase 1: Get Changed Files
 
