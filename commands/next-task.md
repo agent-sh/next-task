@@ -70,7 +70,7 @@ Each phase must complete before the next starts:
 | Gate | Requirement |
 |------|-------------|
 | Implementation | Agent completes all plan steps |
-| Pre-Review | deslop-agent + test-coverage-checker + simplify (parallel, simplify if installed) |
+| Pre-Review | deslop-agent + test-coverage-checker + /simplify (parallel) |
 | Review Loop | Must approve (no open issues or override) |
 | Delivery | Tests pass, build passes |
 | Docs | Documentation updated |
@@ -332,7 +332,7 @@ await Task({
 <phase-8>
 ## Phase 8: Pre-Review Gates
 
-**Agents** (parallel): `deslop:deslop-agent` + `next-task:test-coverage-checker` + `code-simplifier:code-simplifier` (if installed)
+**Parallel**: `deslop:deslop-agent` (Task) + `next-task:test-coverage-checker` (Task) + `/simplify` (Skill, orchestrator)
 
 ```javascript
 workflowState.startPhase('pre-review-gates');
@@ -343,12 +343,8 @@ function parseDeslop(output) {
   return match ? JSON.parse(match[1]) : { fixes: [] };
 }
 
-// Check if simplify skill is installed
-const { getPluginRoot } = require('@agentsys/lib/cross-platform');
-const simplifyInstalled = !!getPluginRoot('code-simplifier');
-
-// Run gates in parallel
-const gates = [
+// Run all three gates in parallel
+const [deslopResult, coverageResult] = await Promise.all([
   Task({
     subagent_type: "deslop:deslop-agent",
     prompt: `Scan for AI slop patterns.
@@ -358,20 +354,9 @@ Thoroughness: normal
 
 Return structured results between === DESLOP_RESULT === markers.`
   }),
-  Task({ subagent_type: "next-task:test-coverage-checker", prompt: `Validate test coverage.` })
-];
-
-if (simplifyInstalled) {
-  gates.push(Task({
-    subagent_type: "code-simplifier:code-simplifier",
-    prompt: `Review recently changed code for reuse, quality, and efficiency.
-Focus on files changed in this branch (git diff origin/${BASE_BRANCH}..HEAD).
-Apply fixes directly. Commit message: "refactor: simplify code"`
-  }));
-}
-
-const results = await Promise.all(gates);
-const [deslopResult, coverageResult] = results;
+  Task({ subagent_type: "next-task:test-coverage-checker", prompt: `Validate test coverage.` }),
+  Skill({ name: "simplify" })
+]);
 
 // If deslop fixes found, spawn simple-fixer
 const deslop = parseDeslop(deslopResult);
@@ -394,8 +379,7 @@ const gatesPassed = (deslop.fixes?.length || 0) === 0;
 workflowState.completePhase({
   passed: gatesPassed,
   deslopFixes: deslop.fixes?.length || 0,
-  coverageResult,
-  simplifyRan: simplifyInstalled
+  coverageResult
 });
 ```
 </phase-8>
