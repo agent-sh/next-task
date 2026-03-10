@@ -70,7 +70,7 @@ Each phase must complete before the next starts:
 | Gate | Requirement |
 |------|-------------|
 | Implementation | Agent completes all plan steps |
-| Pre-Review | deslop-agent + test-coverage-checker (parallel) |
+| Pre-Review | deslop-agent + test-coverage-checker + simplify (parallel, simplify if installed) |
 | Review Loop | Must approve (no open issues or override) |
 | Delivery | Tests pass, build passes |
 | Docs | Documentation updated |
@@ -332,7 +332,7 @@ await Task({
 <phase-8>
 ## Phase 8: Pre-Review Gates
 
-**Agents** (parallel): `deslop:deslop-agent` + `next-task:test-coverage-checker` (sonnet)
+**Agents** (parallel): `deslop:deslop-agent` + `next-task:test-coverage-checker` + `code-simplifier:code-simplifier` (if installed)
 
 ```javascript
 workflowState.startPhase('pre-review-gates');
@@ -343,8 +343,12 @@ function parseDeslop(output) {
   return match ? JSON.parse(match[1]) : { fixes: [] };
 }
 
-// Run deslop and test-coverage in parallel
-const [deslopResult, coverageResult] = await Promise.all([
+// Check if simplify skill is installed
+const { getPluginRoot } = require('@agentsys/lib/cross-platform');
+const simplifyInstalled = !!getPluginRoot('code-simplifier');
+
+// Run gates in parallel
+const gates = [
   Task({
     subagent_type: "deslop:deslop-agent",
     prompt: `Scan for AI slop patterns.
@@ -355,9 +359,21 @@ Thoroughness: normal
 Return structured results between === DESLOP_RESULT === markers.`
   }),
   Task({ subagent_type: "next-task:test-coverage-checker", prompt: `Validate test coverage.` })
-]);
+];
 
-// If fixes found, spawn simple-fixer
+if (simplifyInstalled) {
+  gates.push(Task({
+    subagent_type: "code-simplifier:code-simplifier",
+    prompt: `Review recently changed code for reuse, quality, and efficiency.
+Focus on files changed in this branch (git diff origin/${BASE_BRANCH}..HEAD).
+Apply fixes directly. Commit message: "refactor: simplify code"`
+  }));
+}
+
+const results = await Promise.all(gates);
+const [deslopResult, coverageResult] = results;
+
+// If deslop fixes found, spawn simple-fixer
 const deslop = parseDeslop(deslopResult);
 if (deslop.fixes && deslop.fixes.length > 0) {
   await Task({
@@ -375,7 +391,12 @@ Use Edit tool to apply. Commit message: "fix: clean up AI slop"`
 }
 
 const gatesPassed = (deslop.fixes?.length || 0) === 0;
-workflowState.completePhase({ passed: gatesPassed, deslopFixes: deslop.fixes?.length || 0, coverageResult });
+workflowState.completePhase({
+  passed: gatesPassed,
+  deslopFixes: deslop.fixes?.length || 0,
+  coverageResult,
+  simplifyRan: simplifyInstalled
+});
 ```
 </phase-8>
 
