@@ -140,12 +140,15 @@ const workflowState = require(path.join(pluginRoot, 'lib/state/workflow-state.js
 const args = '$ARGUMENTS'.split(' ').filter(Boolean);
 
 // --base=BRANCH: override the base branch for this project
-// Default: repo's default branch via git symbolic-ref, fallback to "main"
 const baseArg = args.find(a => a.startsWith('--base='));
-const baseBranchCmd = 'git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null';
-const BASE_BRANCH = baseArg
-  ? baseArg.split('=')[1]
-  : baseBranchCmd.replace('refs/remotes/origin/', '').trim() || 'main';
+let BASE_BRANCH = 'main';
+if (baseArg) {
+  BASE_BRANCH = baseArg.split('=')[1];
+} else {
+  // Detect repo default branch
+  const ref = await run('git', ['symbolic-ref', 'refs/remotes/origin/HEAD']).catch(() => '');
+  BASE_BRANCH = ref.trim().replace('refs/remotes/origin/', '') || 'main';
+}
 
 // No flags → Phase 1 (Policy Selection asks about existing tasks)
 if (args.length === 0) {
