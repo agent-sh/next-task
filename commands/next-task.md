@@ -211,7 +211,16 @@ if (sources.needsProjectFollowUp(responses.source)) {
 }
 
 const policy = sources.parseAndCachePolicy(responses);
-workflowState.updateFlow({ policy, phase: 'task-discovery' });
+workflowState.updateFlow({ policy, baseBranch: BASE_BRANCH, phase: 'task-discovery' });
+
+// Gate: verify preference was cached
+const cached = sources.getPreference?.() || sourceCache.getPreference();
+if (!cached) {
+  console.error('[BLOCKED] Policy decision was not persisted to preference cache.');
+  console.error('This is a bug - parseAndCachePolicy should have written the file.');
+  throw new Error('preference-not-cached');
+}
+console.log(`[VERIFIED] Policy cached: source=${cached.source}`);
 ```
 </phase-1>
 
