@@ -183,8 +183,10 @@ No agent needed. Use AskUserQuestion tool with ALL 3 questions from `lib/sources
 | # | Header | Question | Options |
 |---|--------|----------|---------|
 | 1 | Source | Where should I look for tasks? | GitHub Issues, GitHub Projects, GitLab Issues, Local tasks.md, Custom, Other (+ cached if exists) |
-| 2 | Priority | What type of tasks to prioritize? | All, Bugs, Security, Features |
-| 3 | Stop Point | How far should I take this task? | Merged, PR Created, Implemented, Deployed, Production |
+| 2 | Priority | What type of tasks to prioritize? | All, Bugs, Security, Features, Other (+ cached free-text) |
+| 3 | Stop Point | How far should I take this task? | Merged, PR Created, Implemented, Deployed, Production, Other (+ cached free-text) |
+
+**Free-text caching**: When the user selects "Other" and types a custom response (e.g., "merged to feature/v2"), that response is cached and offered as a named option in subsequent runs. If the user stops selecting it for 3 consecutive runs, it is automatically removed.
 
 **Forbidden Actions:**
 - Skipping any of the 3 questions
