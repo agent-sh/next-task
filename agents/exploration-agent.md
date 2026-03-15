@@ -60,6 +60,104 @@ if (!map) {
 }
 ```
 
+## Phase 1.6: Load Repo Intel (If Available)
+
+Use cached repo-intel data for risk-aware file discovery. This enriches exploration with git history intelligence - hotspots, bug density, ownership, and coupling - so the planning agent receives risk context alongside code context.
+
+This step is optional - if repo-intel is unavailable, proceed with keyword-based exploration only.
+
+```javascript
+const { binary } = require('@agentsys/lib');
+const fs = require('fs');
+const path = require('path');
+
+const cwd = process.cwd();
+const stateDir = ['.claude', '.opencode', '.codex']
+  .find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
+const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+
+let repoIntel = null;
+
+if (fs.existsSync(mapFile)) {
+  repoIntel = {};
+
+  // Hotspots: most actively changed files (recency-weighted)
+  try {
+    const json = binary.runAnalyzer([
+      'repo-intel', 'query', 'hotspots',
+      '--top', '15', '--map-file', mapFile, cwd
+    ]);
+    repoIntel.hotspots = JSON.parse(json);
+  } catch (e) { repoIntel.hotspots = null; }
+
+  // Bugspots: files with highest bug-fix density
+  try {
+    const json = binary.runAnalyzer([
+      'repo-intel', 'query', 'bugspots',
+      '--top', '10', '--map-file', mapFile, cwd
+    ]);
+    repoIntel.bugspots = JSON.parse(json);
+  } catch (e) { repoIntel.bugspots = null; }
+
+  // Bus factor: critical owners and knowledge concentration
+  try {
+    const json = binary.runAnalyzer([
+      'repo-intel', 'query', 'bus-factor',
+      '--map-file', mapFile, cwd
+    ]);
+    repoIntel.busFactor = JSON.parse(json);
+  } catch (e) { repoIntel.busFactor = null; }
+
+  console.log(`Repo intel loaded: hotspots=${repoIntel.hotspots?.length || 0}, bugspots=${repoIntel.bugspots?.length || 0}`);
+} else {
+  console.log('Repo intel not found. Consider: /git-map build');
+}
+```
+
+### Querying Coupling and Ownership for Key Files
+
+After Phase 5 identifies primary files, query coupling and ownership for those files:
+
+```javascript
+// Run these queries after key files are identified (Phase 5)
+if (repoIntel && fs.existsSync(mapFile)) {
+  // Coupling: files that frequently change together with each key file
+  repoIntel.coupling = {};
+  for (const file of primaryFiles.slice(0, 5)) {
+    try {
+      const json = binary.runAnalyzer([
+        'repo-intel', 'query', 'coupling', file,
+        '--map-file', mapFile, cwd
+      ]);
+      repoIntel.coupling[file] = JSON.parse(json);
+    } catch (e) { /* coupling unavailable for this file */ }
+  }
+
+  // Ownership: who owns the directories containing key files
+  const keyDirs = [...new Set(primaryFiles.map(f => path.dirname(f)))];
+  repoIntel.ownership = {};
+  for (const dir of keyDirs.slice(0, 5)) {
+    try {
+      const json = binary.runAnalyzer([
+        'repo-intel', 'query', 'ownership', dir,
+        '--map-file', mapFile, cwd
+      ]);
+      repoIntel.ownership[dir] = JSON.parse(json);
+    } catch (e) { /* ownership unavailable for this dir */ }
+  }
+}
+```
+
+### Interpreting Repo Intel Data
+
+Use this data to improve exploration decisions:
+
+- **Hotspots** - Files with high change frequency are volatile. If a hotspot overlaps with task-relevant files, flag it as higher risk - changes there are more likely to conflict or introduce regressions.
+- **Bugspots** - Files with high bug-fix density are fragile. Recommend extra test coverage and careful review for any modifications to these files.
+- **Coupling** - Files that change together are logically connected even if there is no import relationship. If you modify file A and it is coupled with file B, include B in the exploration report as a file that may need updates.
+- **Ownership** - Identifies who knows the code best. Single-owner directories are a bus factor risk. Include owner names in the report so reviewers can be assigned appropriately.
+- **Bus factor** - Low bus factor (1-2) for critical areas means knowledge is concentrated. Flag these areas so the planning agent can account for review bottlenecks.
+
 ## Phase 2: Extract Keywords
 
 Identify key terms from the task:
@@ -252,6 +350,23 @@ ${affectedFiles.join('\n')}
 ### Architecture Notes
 ${architectureNotes}
 
+### Repo Intel (if available)
+
+#### Hotspots Overlapping Task Files
+${repoIntelSummary.hotspotOverlaps?.map(f => `- \`${f.path}\` - score: ${f.score} (volatile, high change frequency)`).join('\n') || 'None'}
+
+#### Bug-Prone Files
+${repoIntelSummary.bugspotOverlaps?.map(f => `- \`${f.path}\` - bug density: ${f.density} (recommend extra test coverage)`).join('\n') || 'None'}
+
+#### Coupled Files (may need coordinated changes)
+${repoIntelSummary.coupledFiles?.map(f => `- \`${f.source}\` <-> \`${f.target}\` (coupling: ${f.strength})`).join('\n') || 'None'}
+
+#### Ownership
+${repoIntelSummary.ownership?.map(o => `- \`${o.dir}\`: ${o.owners.join(', ')}`).join('\n') || 'Unknown'}
+
+#### Bus Factor
+${repoIntelSummary.busFactor || 'Not available'}
+
 ### Risks and Considerations
 ${risks.map(r => `- ${r}`).join('\n')}
 
@@ -271,7 +386,14 @@ workflowState.completePhase({
   keyFiles: primaryFiles.map(f => f.path),
   patterns: detectedPatterns,
   dependencies: dependencyGraph,
-  recommendations: recommendations
+  recommendations: recommendations,
+  repoIntel: repoIntel ? {
+    hotspots: repoIntel.hotspots,
+    bugspots: repoIntel.bugspots,
+    coupling: repoIntel.coupling,
+    ownership: repoIntel.ownership,
+    busFactor: repoIntel.busFactor
+  } : null
 });
 ```
 
@@ -306,6 +428,7 @@ A thorough exploration must:
 - Identify potential risks
 - Provide actionable recommendations
 - NOT miss critical files that would cause issues later
+- Include repo-intel risk context when available (hotspots, bugspots, coupling)
 
 ## Model Choice: Opus
 

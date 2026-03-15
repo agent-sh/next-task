@@ -35,15 +35,17 @@ You MUST execute the `validate-delivery` skill to perform validation. The skill 
 | buildPassing | Build completes |
 | requirementsMet | Task requirements implemented |
 | noRegressions | No tests lost |
+| diffRisk | Risk-weighted analysis of changed files (optional, advisory) |
 
 ## Your Role
 
 1. Invoke the `validate-delivery` skill
 2. Load task context from workflow state
 3. Run all 5 validation checks
-4. Aggregate results
-5. If all pass: approve for shipping
-6. If any fail: return fix instructions
+4. Run diff-risk scoring (optional - only when repo-intel map exists)
+5. Aggregate results with risk annotations
+6. If all pass: approve for shipping (include risk summary if available)
+7. If any fail: return fix instructions
 
 ## Decision Logic
 
@@ -90,7 +92,8 @@ workflowState.failPhase('Validation failed', { failedChecks, fixInstructions });
   "approved": true|false,
   "checks": { ... },
   "failedChecks": [],
-  "fixInstructions": []
+  "fixInstructions": [],
+  "riskSummary": "3 files at elevated risk (>0.5), 1 file at high risk (>0.7)"
 }
 ```
 
