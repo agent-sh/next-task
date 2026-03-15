@@ -278,10 +278,53 @@ console.log(`[VERIFIED] Worktree: ${worktreeResult.worktreePath}`);
 
 ```javascript
 workflowState.startPhase('exploration');
+
+// Pre-fetch repo-intel for Phase 4
+let explorationIntelContext = '';
+try {
+  const { binary } = require('@agentsys/lib');
+  const fs = require('fs');
+  const path = require('path');
+  const cwd = process.cwd();
+  const stateDir = ['.claude', '.opencode', '.codex'].find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
+  const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+
+  if (fs.existsSync(mapFile)) {
+    const intel = {};
+
+    try {
+      intel.hotspots = JSON.parse(binary.runAnalyzer([
+        'repo-intel', 'query', 'hotspots', '--top', '15', '--map-file', mapFile, cwd
+      ]));
+    } catch (e) { /* unavailable */ }
+
+    try {
+      intel.bugspots = JSON.parse(binary.runAnalyzer([
+        'repo-intel', 'query', 'bugspots', '--top', '10', '--map-file', mapFile, cwd
+      ]));
+    } catch (e) { /* unavailable */ }
+
+    try {
+      intel.busFactor = JSON.parse(binary.runAnalyzer([
+        'repo-intel', 'query', 'bus-factor', '--map-file', mapFile, cwd
+      ]));
+    } catch (e) { /* unavailable */ }
+
+    const parts = [];
+    if (intel.hotspots?.length) parts.push(`Hotspots (most volatile files):\n${JSON.stringify(intel.hotspots, null, 2)}`);
+    if (intel.bugspots?.length) parts.push(`Bugspots (highest bug-fix density):\n${JSON.stringify(intel.bugspots, null, 2)}`);
+    if (intel.busFactor) parts.push(`Bus factor:\n${JSON.stringify(intel.busFactor, null, 2)}`);
+
+    if (parts.length > 0) {
+      explorationIntelContext = '\n\nRepo intel context (use to prioritize risky files during exploration):\n' + parts.join('\n\n');
+    }
+  }
+} catch (e) { /* repo-intel unavailable */ }
+
 await Task({
   subagent_type: "next-task:exploration-agent",
   model: "opus",
-  prompt: `Deep codebase analysis for task #${state.task.id}. Find key files, patterns, dependencies.`
+  prompt: `Deep codebase analysis for task #${state.task.id}. Find key files, patterns, dependencies.${explorationIntelContext}`
 });
 ```
 </phase-4>
@@ -337,6 +380,28 @@ await Task({
 ```javascript
 workflowState.startPhase('pre-review-gates');
 
+// Pre-fetch repo-intel for Phase 8
+let testGapsContext = '';
+try {
+  const { binary } = require('@agentsys/lib');
+  const fs = require('fs');
+  const path = require('path');
+  const cwd = process.cwd();
+  const stateDir = ['.claude', '.opencode', '.codex'].find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
+  const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+
+  if (fs.existsSync(mapFile)) {
+    try {
+      const testGaps = JSON.parse(binary.runAnalyzer([
+        'repo-intel', 'query', 'test-gaps', '--top', '20', '--map-file', mapFile, cwd
+      ]));
+      if (testGaps?.length) {
+        testGapsContext = '\n\nRepo intel test-gaps (hot files with no co-changing test file):\n' + JSON.stringify(testGaps, null, 2);
+      }
+    } catch (e) { /* unavailable */ }
+  }
+} catch (e) { /* repo-intel unavailable */ }
+
 // Helper to parse deslop structured output
 function parseDeslop(output) {
   const match = output.match(/=== DESLOP_RESULT ===[\s\S]*?({[\s\S]*?})[\s\S]*?=== END_RESULT ===/);
@@ -354,7 +419,7 @@ Thoroughness: normal
 
 Return structured results between === DESLOP_RESULT === markers.`
   }),
-  Task({ subagent_type: "next-task:test-coverage-checker", prompt: `Validate test coverage.` }),
+  Task({ subagent_type: "next-task:test-coverage-checker", prompt: `Validate test coverage.${testGapsContext}` }),
   Skill({ name: "simplify" })
 ]);
 
@@ -391,6 +456,37 @@ workflowState.completePhase({
 
 ```javascript
 workflowState.startPhase('review-loop');
+
+// Pre-fetch repo-intel for Phase 9
+let diffRiskContext = '';
+try {
+  const { binary } = require('@agentsys/lib');
+  const fs = require('fs');
+  const path = require('path');
+  const cp = require('child_process');
+  const cwd = process.cwd();
+  const stateDir = ['.claude', '.opencode', '.codex'].find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
+  const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+
+  if (fs.existsSync(mapFile)) {
+    const changedFiles = cp.execFileSync('git', ['diff', '--name-only', `${BASE_BRANCH}...HEAD`], {
+      encoding: 'utf8', cwd
+    }).trim().split('\n').filter(Boolean);
+
+    if (changedFiles.length > 0) {
+      try {
+        const diffRisk = JSON.parse(binary.runAnalyzer([
+          'repo-intel', 'query', 'diff-risk',
+          '--files', changedFiles.join(','),
+          '--map-file', mapFile, cwd
+        ]));
+        if (diffRisk) {
+          diffRiskContext = '\n\nRepo intel diff-risk for changed files (use to focus review on highest-risk files):\n' + JSON.stringify(diffRisk, null, 2);
+        }
+      } catch (e) { /* unavailable */ }
+    }
+  }
+} catch (e) { /* repo-intel unavailable */ }
 ```
 
 **CRITICAL**: You MUST spawn multiple parallel reviewer agents. Do NOT use a single generic reviewer.
@@ -432,19 +528,19 @@ const reviewResults = await Promise.all([
   Task({ subagent_type: 'general-purpose', model: 'sonnet',
     prompt: `You are a code quality reviewer. Review these files: ${files.join(', ')}
 Focus: Style and consistency, Best practices, Bugs and logic errors, Error handling, Maintainability, Duplication
-Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion` }),
+Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}` }),
   Task({ subagent_type: 'general-purpose', model: 'sonnet',
     prompt: `You are a security reviewer. Review these files: ${files.join(', ')}
 Focus: Auth/authz flaws, Input validation, Injection risks, Secrets exposure, Insecure defaults
-Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion` }),
+Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}` }),
   Task({ subagent_type: 'general-purpose', model: 'sonnet',
     prompt: `You are a performance reviewer. Review these files: ${files.join(', ')}
 Focus: N+1 queries, Blocking operations, Hot path inefficiencies, Memory leaks
-Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion` }),
+Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}` }),
   Task({ subagent_type: 'general-purpose', model: 'sonnet',
     prompt: `You are a test coverage reviewer. Review these files: ${files.join(', ')}
 Focus: Missing tests, Edge case coverage, Test quality, Integration needs, Mock appropriateness
-Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion` })
+Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}` })
 ]);
 
 // Add conditional specialists based on signals (spawn in parallel with appropriate prompts)
