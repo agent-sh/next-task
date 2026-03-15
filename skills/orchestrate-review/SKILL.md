@@ -64,11 +64,82 @@ const signals = {
 };
 ```
 
+## File Risk Prioritization
+
+Before starting review passes, score changed files by composite risk using `diff-risk` from agent-analyzer. This orders files so reviewers focus on highest-risk code first within each pass.
+
+This step is optional - if repo-intel is unavailable, proceed with the default file ordering.
+
+### Scoring Changed Files
+
+```javascript
+const { binary } = require('@agentsys/lib');
+const fs = require('fs');
+const path = require('path');
+
+// Detect platform state directory
+const stateDir = ['.claude', '.opencode', '.codex']
+  .find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
+const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+
+let riskScoredFiles = null;
+
+if (fs.existsSync(mapFile)) {
+  const fileList = changedFiles.join(',');
+  try {
+    const json = binary.runAnalyzer([
+      'repo-intel', 'query', 'diff-risk',
+      '--files', fileList,
+      '--map-file', mapFile,
+      cwd
+    ]);
+    riskScoredFiles = JSON.parse(json);
+    // riskScoredFiles is sorted by riskScore descending
+  } catch (e) {
+    // diff-risk failed - proceed with default ordering
+    console.log('[WARN] diff-risk unavailable, using default file order');
+  }
+}
+```
+
+### Applying Risk Order
+
+When `riskScoredFiles` is available, use it to reorder the file list passed to each review pass:
+
+```javascript
+// Replace the default file list with risk-ordered list
+if (riskScoredFiles) {
+  files = riskScoredFiles.map(r => r.path);
+}
+```
+
+### High-Risk File Scrutiny
+
+Files with `riskScore > 0.5` should receive extra scrutiny. When passing files to review agents, annotate high-risk files so reviewers know to look more carefully:
+
+```javascript
+function formatFileList(files, riskScoredFiles) {
+  if (!riskScoredFiles) return files.join('\n');
+  const riskMap = new Map(riskScoredFiles.map(r => [r.path, r]));
+  return files.map(f => {
+    const risk = riskMap.get(f);
+    if (risk && risk.riskScore > 0.5) {
+      return `${f}  [HIGH RISK: score=${risk.riskScore.toFixed(2)}, bugFixRate=${risk.bugFixRate.toFixed(2)}, aiRatio=${risk.aiRatio.toFixed(2)}]`;
+    }
+    return f;
+  }).join('\n');
+}
+```
+
+The formatted file list replaces `${files.join('\n')}` in the task prompt template below.
+
 ## Task Prompt Template
 
 ```
-You are a ${pass.role}. Review these changed files:
-${files.join('\n')}
+You are a ${pass.role}. Review these changed files (ordered by risk, highest first):
+${formatFileList(files, riskScoredFiles)}
+
+Files marked [HIGH RISK] have elevated bug-fix rates, single-author ownership, or high AI-contribution ratios. Give these files extra scrutiny.
 
 Focus: ${pass.focus.map(f => `- ${f}`).join('\n')}
 

@@ -40,6 +40,57 @@ echo "SOURCE_FILES=$CHANGED_SOURCE"
 echo "TEST_FILES=$CHANGED_TESTS"
 ```
 
+## Phase 1.5: Gather Repo Intel (If Available)
+
+Check for repo-intel data to enrich coverage checks with historical risk signals. This step is optional - the checker works without it.
+
+```javascript
+const { binary } = require('@agentsys/lib');
+const fs = require('fs');
+const path = require('path');
+
+const cwd = process.cwd();
+const stateDir = ['.claude', '.opencode', '.codex']
+  .find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
+const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+
+let repoIntel = null;
+
+if (fs.existsSync(mapFile)) {
+  repoIntel = {};
+
+  // Test gaps: hot files with no co-changing test file
+  try {
+    const json = binary.runAnalyzer([
+      'repo-intel', 'query', 'test-gaps',
+      '--top', '20', '--map-file', mapFile, cwd
+    ]);
+    repoIntel.testGaps = JSON.parse(json);
+  } catch (e) { repoIntel.testGaps = null; }
+
+  // Bugspots: files with highest bug-fix density
+  try {
+    const json = binary.runAnalyzer([
+      'repo-intel', 'query', 'bugspots',
+      '--top', '20', '--map-file', mapFile, cwd
+    ]);
+    repoIntel.bugspots = JSON.parse(json);
+  } catch (e) { repoIntel.bugspots = null; }
+
+  console.log(`Repo intel loaded: testGaps=${repoIntel.testGaps?.length || 0}, bugspots=${repoIntel.bugspots?.length || 0}`);
+} else {
+  console.log('Repo intel not found - proceeding without risk weighting');
+}
+
+// Build lookup maps for quick access during coverage checks
+const testGapSet = new Set(
+  (repoIntel?.testGaps || []).map(g => g.path)
+);
+const bugspotMap = new Map(
+  (repoIntel?.bugspots || []).map(b => [b.path, b])
+);
+```
+
 ## Phase 2: Detect Test Conventions
 
 Detect the project's test file naming convention:
@@ -149,6 +200,68 @@ for (const sourceFile of changedSourceFiles) {
     covered.push({
       file: sourceFile,
       testFile: existingTest
+    });
+  }
+}
+```
+
+## Phase 4.5: Risk-Weighted Validation
+
+When repo-intel data is available, apply stricter checks to historically risky files.
+
+```javascript
+const riskIssues = [];
+
+for (const sourceFile of changedSourceFiles) {
+  const inTestGaps = testGapSet.has(sourceFile);
+  const bugspot = bugspotMap.get(sourceFile);
+  const existingTest = findTestFile(sourceFile).find(t => fileExists(t));
+  const testModified = existingTest && changedTestFiles.includes(existingTest);
+
+  // FAIL: file appears in both test-gaps AND bugspots with no new test added
+  if (inTestGaps && bugspot && !testModified) {
+    riskIssues.push({
+      file: sourceFile,
+      severity: 'critical',
+      type: 'high-risk-untested',
+      bugFixRate: bugspot.bugFixRate,
+      message: `${sourceFile} has ${(bugspot.bugFixRate * 100).toFixed(0)}% bug-fix rate AND no co-changing test file in git history - test coverage is required`
+    });
+  }
+
+  // WARN: file is in bugspots (bugFixRate > 0.3) and test only does basic assertions
+  if (bugspot && bugspot.bugFixRate > 0.3 && testModified && existingTest) {
+    const testContent = await readFile(existingTest);
+    const trivialPatterns = [
+      /expect\s*\(\s*true\s*\)/,
+      /expect\s*\(\s*1\s*\)\s*\.toBe\s*\(\s*1\s*\)/,
+      /assert\s*\(\s*True\s*\)/,
+      /\.toBeDefined\s*\(\s*\)/
+    ];
+    const hasTrivialOnly = trivialPatterns.some(p => p.test(testContent));
+
+    if (hasTrivialOnly) {
+      riskIssues.push({
+        file: sourceFile,
+        severity: 'warning',
+        type: 'weak-test-for-risky-file',
+        bugFixRate: bugspot.bugFixRate,
+        testFile: existingTest,
+        message: `${sourceFile} has ${(bugspot.bugFixRate * 100).toFixed(0)}% bug-fix rate but test only has trivial assertions - test quality is critical`
+      });
+    }
+  }
+
+  // INFO: annotate bugspot context for the coverage report
+  if (bugspot) {
+    riskIssues.push({
+      file: sourceFile,
+      severity: 'info',
+      type: 'bugspot-context',
+      bugFixRate: bugspot.bugFixRate,
+      bugFixes: bugspot.bugFixes,
+      totalChanges: bugspot.totalChanges,
+      message: `${sourceFile} has ${(bugspot.bugFixRate * 100).toFixed(0)}% bug-fix rate (${bugspot.bugFixes}/${bugspot.totalChanges} changes are fixes) - test quality is critical`
     });
   }
 }
@@ -374,9 +487,27 @@ async function analyzeTestDepth(sourceFile, testFile, diff) {
       "quality": "good"
     }
   ],
+  "riskIssues": [
+    {
+      "file": "src/auth.ts",
+      "severity": "critical",
+      "type": "high-risk-untested",
+      "bugFixRate": 0.45,
+      "message": "src/auth.ts has 45% bug-fix rate AND no co-changing test file in git history - test coverage is required"
+    },
+    {
+      "file": "src/parser.ts",
+      "severity": "warning",
+      "type": "weak-test-for-risky-file",
+      "bugFixRate": 0.35,
+      "testFile": "tests/parser.test.ts",
+      "message": "src/parser.ts has 35% bug-fix rate but test only has trivial assertions - test quality is critical"
+    }
+  ],
   "summary": {
     "status": "quality-issues-found",
-    "recommendation": "2 files missing tests, 1 file has tests but doesn't exercise new code"
+    "recommendation": "2 files missing tests, 1 file has tests but doesn't exercise new code",
+    "riskSummary": "1 critical risk file lacks tests, 1 high-bug-rate file has weak tests"
   }
 }
 ```
@@ -410,11 +541,15 @@ ${q.issues.map(i => `- [WARN] ${i.message}`).join('\n')}
 ${q.suggestions?.map(s => `- [TIP] ${s}`).join('\n') || ''}
 `).join('\n')}
 
+### Risk-Weighted Findings (repo-intel)
+${riskIssues.length > 0 ? riskIssues.filter(r => r.severity !== 'info').map(r => `- [${r.severity === 'critical' ? 'CRITICAL' : 'WARN'}] ${r.message}`).join('\n') : 'No repo-intel data available or no risk overlaps found'}
+
 ### Well-Covered Files
 ${covered.filter(c => c.quality === 'good').map(c => `- [OK] ${c.file} -> ${c.testFile}`).join('\n')}
 
 ### Recommendation
 ${summary.recommendation}
+${summary.riskSummary ? `\n**Risk**: ${summary.riskSummary}` : ''}
 ```
 
 ## Behavior
@@ -439,6 +574,10 @@ This agent is called:
 - **Flags trivial or meaningless tests** (e.g., `expect(true).toBe(true)`)
 - **Checks for edge case coverage** in tests
 - **Verifies tests import the source file** they claim to test
+- **Fails validation for files in both test-gaps AND bugspots with no new test** (when repo-intel available)
+- **Warns on high-bugrate files with only trivial test assertions** (when repo-intel available)
+- **Includes risk context** (bug-fix rate, test-gap status) in coverage report
+- Works fully without repo-intel - risk checks are additive, not required
 - Provides actionable recommendations
 - Does NOT block workflow on missing tests
 

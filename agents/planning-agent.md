@@ -191,6 +191,148 @@ Highlight the most important/risky parts:
 - [If applicable]
 ```
 
+## Phase 5.5: Data-Backed Risk Signals (Repo-Intel)
+
+If the exploration output includes repo-intel data (hotspots, bugspots, coupling, busFactor), use it to produce quantitative risk annotations. If repo-intel data is not available, skip this phase and rely on the heuristics from Phase 5.
+
+### Check for repo-intel availability
+
+```javascript
+const { getPluginRoot } = require('./lib/cross-platform');
+const path = require('path');
+
+const pluginRoot = getPluginRoot('git-map');
+let repoIntel = null;
+
+if (pluginRoot) {
+  try {
+    const queries = require(path.join(pluginRoot, 'lib/git-map/queries'));
+    repoIntel = queries;
+    console.log('[OK] repo-intel available - augmenting risk assessment');
+  } catch {
+    console.log('[WARN] git-map plugin found but queries failed to load');
+  }
+} else {
+  console.log('[WARN] git-map plugin not installed - using heuristic risk assessment only');
+}
+```
+
+### Gather risk signals for planned files
+
+For each file in the plan, query bugspots, coupling, and ownership. Collect the results into a `riskSignals` structure.
+
+```javascript
+const cwd = process.cwd();
+const plannedFiles = plan.steps.flatMap(s => s.files.map(f => f.path));
+const riskSignals = { bugspots: [], coupling: [], ownership: [], diffRisk: [] };
+
+if (repoIntel) {
+  // Bugspots - flag files with bugFixRate > 0.3 as HIGH RISK
+  try {
+    const bugs = repoIntel.bugspots(cwd, { limit: 50 });
+    for (const entry of bugs) {
+      if (plannedFiles.includes(entry.path) && entry.bugFixRate > 0.3) {
+        riskSignals.bugspots.push({
+          path: entry.path,
+          bugFixRate: entry.bugFixRate,
+          level: entry.bugFixRate > 0.5 ? 'CRITICAL' : 'HIGH'
+        });
+      }
+    }
+  } catch (err) {
+    console.log('[WARN] bugspots query failed:', err.message);
+  }
+
+  // Coupling - find files that historically co-change with planned files
+  // but are not yet in the plan
+  try {
+    for (const file of plannedFiles) {
+      const coupled = repoIntel.coupling(cwd, file);
+      for (const entry of coupled) {
+        if (!plannedFiles.includes(entry.file) && entry.score > 0.5) {
+          riskSignals.coupling.push({
+            source: file,
+            coupled: entry.file,
+            score: entry.score,
+            commonCommits: entry.commonCommits
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.log('[WARN] coupling query failed:', err.message);
+  }
+
+  // Ownership - check for single-owner risk
+  try {
+    for (const file of plannedFiles) {
+      const own = repoIntel.ownership(cwd, file);
+      if (own && own.busFactorRisk) {
+        riskSignals.ownership.push({
+          path: own.path,
+          primary: own.primary,
+          pct: own.pct,
+          busFactorRisk: true
+        });
+      }
+    }
+  } catch (err) {
+    console.log('[WARN] ownership query failed:', err.message);
+  }
+
+  // Bus factor - repo-level summary
+  try {
+    const bf = repoIntel.busFactor(cwd);
+    if (bf.busFactor <= 1) {
+      riskSignals.busFactor = {
+        factor: bf.busFactor,
+        criticalOwners: bf.criticalOwners
+      };
+    }
+  } catch (err) {
+    console.log('[WARN] busFactor query failed:', err.message);
+  }
+
+  // Diff risk - composite risk score for all planned files
+  try {
+    if (plannedFiles.length > 0) {
+      riskSignals.diffRisk = repoIntel.diffRisk(cwd, plannedFiles);
+    }
+  } catch (err) {
+    console.log('[WARN] diffRisk query failed:', err.message);
+  }
+}
+```
+
+### Interpreting risk signals
+
+Apply these rules when incorporating signals into the plan:
+
+- **bugFixRate > 0.3**: Flag the file as HIGH RISK in the plan. Recommend extra test coverage and careful review. Above 0.5 is CRITICAL.
+- **Coupling score > 0.5 with a file not in the plan**: Flag as "potentially missing from plan". The co-changing file may need updates or at minimum verification.
+- **busFactorRisk = true on a file**: Note the single-owner risk. If the owner is not the person doing the work, recommend their review.
+- **busFactor <= 1 repo-wide**: Note this in the plan's risk section so the team is aware of knowledge concentration.
+- **diffRisk score**: Use as an ordering signal - review highest-risk files first.
+
+### Output format for risk signals
+
+Include a `### Data-Backed Risk Signals` subsection in the plan output. Example:
+
+```
+### Data-Backed Risk Signals
+
+- `src/auth.ts`: bugFixRate=0.45 (HIGH), singleOwner=true (Alice, 92%)
+- `src/auth.ts` couples with `src/session.ts` (87% co-change, 14 common commits) - verify session.ts is in plan
+- `src/middleware.ts`: diffRisk=0.72 (HIGH), churn=34, authorCount=1
+- Bus factor: 1 (critical owner: Alice, coverage: 92%)
+
+Potentially missing files (high coupling with planned files):
+- `src/session.ts` - 87% co-change with `src/auth.ts`
+- `tests/auth.test.ts` - 65% co-change with `src/auth.ts`
+```
+
+If no repo-intel data is available, omit this subsection entirely.
+
 ## Phase 6: Estimate Complexity
 
 Provide honest assessment:
@@ -253,7 +395,8 @@ const plan = {
     highRisk: ["File/function - Why it's risky"],
     needsReview: ["Area - Why"],
     performance: ["If applicable"],
-    security: ["If applicable"]
+    security: ["If applicable"],
+    riskSignals: riskSignals || null  // from Phase 5.5; null if repo-intel unavailable
   },
   complexity: {
     overall: "Low|Medium|High",
