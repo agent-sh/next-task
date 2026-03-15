@@ -93,21 +93,53 @@ AFTER=$(npm test 2>&1 | grep -oE '[0-9]+ passing' | grep -oE '[0-9]+')
 [ "$AFTER" -lt "$BEFORE" ] && REGRESSION=true || REGRESSION=false
 ```
 
+### Pre-check: Ensure Repo-Intel (before Check 6)
+
+```javascript
+const fs = require('fs');
+const path = require('path');
+
+const cwd = process.cwd();
+const stateDir = ['.claude', '.opencode', '.codex']
+  .find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
+const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+
+if (!fs.existsSync(mapFile)) {
+  const response = await AskUserQuestion({
+    questions: [{
+      question: 'Generate repo-intel?',
+      description: 'No repo-intel map found. Generating one enables diff-risk scoring for changed files. Takes ~5 seconds.',
+      options: [
+        { label: 'Yes, generate it', value: 'yes' },
+        { label: 'Skip', value: 'no' }
+      ]
+    }]
+  });
+
+  if (response === 'yes' || response?.['Generate repo-intel?'] === 'yes') {
+    try {
+      const { binary } = require('@agentsys/lib');
+      const output = binary.runAnalyzer(['repo-intel', 'init', cwd]);
+      const stateDirPath = path.join(cwd, stateDir);
+      if (!fs.existsSync(stateDirPath)) fs.mkdirSync(stateDirPath, { recursive: true });
+      fs.writeFileSync(mapFile, output);
+    } catch (e) {
+      // Binary not available - proceed without
+    }
+  }
+}
+```
+
 ### Check 6: Diff Risk (optional, advisory)
 
 Score changed files by composite risk using repo-intel. This check is advisory - it never causes pass/fail on its own, but raises the bar for high-risk files.
 
 ```javascript
 const { binary } = require('@agentsys/lib');
-const fs = require('fs');
-const path = require('path');
+
+// stateDir and mapFile already defined in pre-check above
 
 function checkDiffRisk(cwd) {
-  // Detect platform state directory
-  const stateDir = ['.claude', '.opencode', '.codex']
-    .find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
-  const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
-
   if (!fs.existsSync(mapFile)) {
     return { available: false, reason: 'No repo-intel map found' };
   }

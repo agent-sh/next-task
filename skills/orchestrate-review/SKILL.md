@@ -70,17 +70,49 @@ Before starting review passes, score changed files by composite risk using `diff
 
 This step is optional - if repo-intel is unavailable, proceed with the default file ordering.
 
+### Pre-check: Ensure Repo-Intel
+
+```javascript
+const fs = require('fs');
+const path = require('path');
+
+const cwd = process.cwd();
+const stateDir = ['.claude', '.opencode', '.codex']
+  .find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
+const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+
+if (!fs.existsSync(mapFile)) {
+  const response = await AskUserQuestion({
+    questions: [{
+      question: 'Generate repo-intel?',
+      description: 'No repo-intel map found. Generating one enables risk-scored file ordering for review passes. Takes ~5 seconds.',
+      options: [
+        { label: 'Yes, generate it', value: 'yes' },
+        { label: 'Skip', value: 'no' }
+      ]
+    }]
+  });
+
+  if (response === 'yes' || response?.['Generate repo-intel?'] === 'yes') {
+    try {
+      const { binary } = require('@agentsys/lib');
+      const output = binary.runAnalyzer(['repo-intel', 'init', cwd]);
+      const stateDirPath = path.join(cwd, stateDir);
+      if (!fs.existsSync(stateDirPath)) fs.mkdirSync(stateDirPath, { recursive: true });
+      fs.writeFileSync(mapFile, output);
+    } catch (e) {
+      // Binary not available - proceed without
+    }
+  }
+}
+```
+
 ### Scoring Changed Files
 
 ```javascript
 const { binary } = require('@agentsys/lib');
-const fs = require('fs');
-const path = require('path');
 
-// Detect platform state directory
-const stateDir = ['.claude', '.opencode', '.codex']
-  .find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
-const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+// stateDir and mapFile already defined above
 
 let riskScoredFiles = null;
 
