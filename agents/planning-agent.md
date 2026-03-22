@@ -301,6 +301,14 @@ if (repoIntel) {
   } catch (err) {
     console.log('[WARN] diffRisk query failed:', err.message);
   }
+
+  // Painspots - files that are simultaneously hot, buggy, and complex (highest risk)
+  try {
+    riskSignals.painspots = repoIntel.painspots(cwd, { limit: 10 })
+      .filter(p => plannedFiles.includes(p.path));
+  } catch (err) {
+    console.log('[WARN] painspots query failed:', err.message);
+  }
 }
 ```
 
@@ -313,6 +321,7 @@ Apply these rules when incorporating signals into the plan:
 - **busFactorRisk = true on a file**: Note the single-owner risk. If the owner is not the person doing the work, recommend their review.
 - **busFactor <= 1 repo-wide**: Note this in the plan's risk section so the team is aware of knowledge concentration.
 - **diffRisk score**: Use as an ordering signal - review highest-risk files first.
+- **painspots** (hotspot × bug rate × complexity): The highest-confidence risk signal. If a planned file appears in painspots, it needs careful review, thorough tests, and potentially a smaller change scope. Flag as CRITICAL if `painScore > 2.0`.
 
 ### Output format for risk signals
 
@@ -329,6 +338,9 @@ Include a `### Data-Backed Risk Signals` subsection in the plan output. Example:
 Potentially missing files (high coupling with planned files):
 - `src/session.ts` - 87% co-change with `src/auth.ts`
 - `tests/auth.test.ts` - 65% co-change with `src/auth.ts`
+
+Pain spots (hotspot × complexity × bug density):
+- `src/auth.ts` - painScore=2.3 (CRITICAL), complexityMax=28, bugFixRate=0.45
 ```
 
 If no repo-intel data is available, omit this subsection entirely.
