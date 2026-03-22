@@ -144,6 +144,19 @@ if (repoIntel && fs.existsSync(mapFile)) {
       repoIntel.ownership[dir] = JSON.parse(json);
     } catch (e) { /* ownership unavailable for this dir */ }
   }
+
+  // Symbols: exported symbols for primary files (blast radius for changes)
+  repoIntel.symbols = {};
+  for (const file of primaryFiles.slice(0, 5)) {
+    try {
+      const json = binary.runAnalyzer([
+        'repo-intel', 'query', 'symbols', file,
+        '--map-file', mapFile, cwd
+      ]);
+      const syms = JSON.parse(json);
+      if (syms) repoIntel.symbols[file] = syms;
+    } catch (e) { /* symbols unavailable - Phase 2 data absent */ }
+  }
 }
 ```
 
@@ -156,6 +169,7 @@ Use this data to improve exploration decisions:
 - **Coupling** - Files that change together are logically connected even if there is no import relationship. If you modify file A and it is coupled with file B, include B in the exploration report as a file that may need updates.
 - **Ownership** - Identifies who knows the code best. Single-owner directories are a bus factor risk. Include owner names in the report so reviewers can be assigned appropriately.
 - **Bus factor** - Low bus factor (1-2) for critical areas means knowledge is concentrated. Flag these areas so the planning agent can account for review bottlenecks.
+- **Symbols** - Exported symbols reveal the blast radius of changes. If a primary file exports a widely-used function, changing its signature affects all callers. Include export names in the report so the planning agent can assess dependency impact.
 
 ## Phase 2: Extract Keywords
 
@@ -366,6 +380,9 @@ ${repoIntelSummary.ownership?.map(o => `- \`${o.dir}\`: ${o.owners.join(', ')}`)
 #### Bus Factor
 ${repoIntelSummary.busFactor || 'Not available'}
 
+#### Symbol Exports for Primary Files
+${Object.entries(repoIntelSummary.symbols || {}).map(([f, s]) => `- \`${f}\`: exports ${s.exports?.map(e => e.name).join(', ') || 'none'}`).join('\n') || 'None (Phase 2 data unavailable)'}
+
 ### Risks and Considerations
 ${risks.map(r => `- ${r}`).join('\n')}
 
@@ -391,7 +408,8 @@ workflowState.completePhase({
     bugspots: repoIntel.bugspots,
     coupling: repoIntel.coupling,
     ownership: repoIntel.ownership,
-    busFactor: repoIntel.busFactor
+    busFactor: repoIntel.busFactor,
+    symbols: repoIntel.symbols
   } : null
 });
 ```
