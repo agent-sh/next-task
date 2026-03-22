@@ -283,40 +283,27 @@ workflowState.startPhase('exploration');
 let explorationIntelContext = '';
 try {
   const { binary } = require('@agentsys/lib');
+  const { getStateDirPath } = require('@agentsys/lib/platform/state-dir');
   const fs = require('fs');
-  const path = require('path');
   const cwd = process.cwd();
-  const stateDir = ['.claude', '.opencode', '.codex'].find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
-  const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+  const mapFile = require('path').join(getStateDirPath(cwd), 'repo-intel.json');
+  const q = (args) => { try { return JSON.parse(binary.runAnalyzer(args)); } catch { return null; } };
 
   if (fs.existsSync(mapFile)) {
     const intel = {};
-
-    try {
-      intel.hotspots = JSON.parse(binary.runAnalyzer([
-        'repo-intel', 'query', 'hotspots', '--top', '15', '--map-file', mapFile, cwd
-      ]));
-    } catch (e) { /* unavailable */ }
-
-    try {
-      intel.bugspots = JSON.parse(binary.runAnalyzer([
-        'repo-intel', 'query', 'bugspots', '--top', '10', '--map-file', mapFile, cwd
-      ]));
-    } catch (e) { /* unavailable */ }
-
-    try {
-      intel.busFactor = JSON.parse(binary.runAnalyzer([
-        'repo-intel', 'query', 'bus-factor', '--map-file', mapFile, cwd
-      ]));
-    } catch (e) { /* unavailable */ }
+    intel.hotspots = q(['repo-intel', 'query', 'hotspots', '--top', '15', '--map-file', mapFile, cwd]);
+    intel.bugspots = q(['repo-intel', 'query', 'bugspots', '--top', '10', '--map-file', mapFile, cwd]);
+    intel.busFactor = q(['repo-intel', 'query', 'bus-factor', '--map-file', mapFile, cwd]);
+    intel.conventions = q(['repo-intel', 'query', 'conventions', '--map-file', mapFile, cwd]);
 
     const parts = [];
     if (intel.hotspots?.length) parts.push(`Hotspots (most volatile files):\n${JSON.stringify(intel.hotspots, null, 2)}`);
     if (intel.bugspots?.length) parts.push(`Bugspots (highest bug-fix density):\n${JSON.stringify(intel.bugspots, null, 2)}`);
     if (intel.busFactor) parts.push(`Bus factor:\n${JSON.stringify(intel.busFactor, null, 2)}`);
+    if (intel.conventions) parts.push(`Conventions (match this style):\n${JSON.stringify(intel.conventions, null, 2)}`);
 
     if (parts.length > 0) {
-      explorationIntelContext = '\n\nRepo intel context (use to prioritize risky files during exploration):\n' + parts.join('\n\n');
+      explorationIntelContext = '\n\nRepo intel context (use to prioritize risky files and match coding style):\n' + parts.join('\n\n');
     }
   }
 } catch (e) { /* repo-intel unavailable */ }
@@ -384,11 +371,10 @@ workflowState.startPhase('pre-review-gates');
 let testGapsContext = '';
 try {
   const { binary } = require('@agentsys/lib');
+  const { getStateDirPath } = require('@agentsys/lib/platform/state-dir');
   const fs = require('fs');
-  const path = require('path');
   const cwd = process.cwd();
-  const stateDir = ['.claude', '.opencode', '.codex'].find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
-  const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+  const mapFile = require('path').join(getStateDirPath(cwd), 'repo-intel.json');
 
   if (fs.existsSync(mapFile)) {
     try {
@@ -464,9 +450,9 @@ try {
   const fs = require('fs');
   const path = require('path');
   const cp = require('child_process');
+  const { getStateDirPath } = require('@agentsys/lib/platform/state-dir');
   const cwd = process.cwd();
-  const stateDir = ['.claude', '.opencode', '.codex'].find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
-  const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+  const mapFile = path.join(getStateDirPath(cwd), 'repo-intel.json');
 
   if (fs.existsSync(mapFile)) {
     const changedFiles = cp.execFileSync('git', ['diff', '--name-only', `${BASE_BRANCH}...HEAD`], {
