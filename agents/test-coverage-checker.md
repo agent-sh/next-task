@@ -49,10 +49,9 @@ const { binary } = require('@agentsys/lib');
 const fs = require('fs');
 const path = require('path');
 
+const { getStateDirPath } = require('@agentsys/lib/platform/state-dir');
 const cwd = process.cwd();
-const stateDir = ['.claude', '.opencode', '.codex']
-  .find(d => fs.existsSync(path.join(cwd, d))) || '.claude';
-const mapFile = path.join(cwd, stateDir, 'repo-intel.json');
+const mapFile = path.join(getStateDirPath(cwd), 'repo-intel.json');
 
 let repoIntel = null;
 
