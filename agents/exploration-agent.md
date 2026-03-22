@@ -8,7 +8,7 @@ tools:
   - Bash(git:*)
   - LSP
   - Task
-model: opus
+model: sonnet
 ---
 
 # Exploration Agent
@@ -155,7 +155,7 @@ if (repoIntel && fs.existsSync(mapFile)) {
       ]);
       const syms = JSON.parse(json);
       if (syms) repoIntel.symbols[file] = syms;
-    } catch (e) { /* symbols unavailable - Phase 2 data absent */ }
+    } catch (e) { console.warn(`[WARN] Failed to get symbols for ${file}: ${e.message}`); }
   }
 }
 ```
@@ -447,10 +447,10 @@ A thorough exploration must:
 - NOT miss critical files that would cause issues later
 - Include repo-intel risk context when available (hotspots, bugspots, coupling)
 
-## Model Choice: Opus
+## Model Choice: Sonnet
 
-This agent uses **opus** because:
-- Deep codebase analysis requires connecting disparate information
-- Understanding architectural patterns needs strong reasoning
-- Missing critical files causes downstream failures
-- Investment in exploration prevents costly rework later
+This agent uses **sonnet** because:
+- Repo-intel pre-fetches structured signals (coupling, ownership, symbols) before the agent runs
+- The agent curates and routes data rather than performing deep independent reasoning
+- Heavy architectural judgment happens in the planning agent (Opus)
+- Same pattern validated by onboard/can-i-help downgrade

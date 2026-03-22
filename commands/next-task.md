@@ -286,8 +286,9 @@ try {
   const { getStateDirPath } = require('@agentsys/lib/platform/state-dir');
   const fs = require('fs');
   const cwd = process.cwd();
-  const mapFile = require('path').join(getStateDirPath(cwd), 'repo-intel.json');
-  const q = (args) => { try { return JSON.parse(binary.runAnalyzer(args)); } catch { return null; } };
+  const path = require('path');
+  const mapFile = path.join(getStateDirPath(cwd), 'repo-intel.json');
+  const q = (args) => { try { return JSON.parse(binary.runAnalyzer(args)); } catch (e) { console.warn(`[WARN] repo-intel query failed (${args[3]}): ${e.message}`); return null; } };
 
   if (fs.existsSync(mapFile)) {
     const intel = {};
@@ -373,8 +374,9 @@ try {
   const { binary } = require('@agentsys/lib');
   const { getStateDirPath } = require('@agentsys/lib/platform/state-dir');
   const fs = require('fs');
+  const path = require('path');
   const cwd = process.cwd();
-  const mapFile = require('path').join(getStateDirPath(cwd), 'repo-intel.json');
+  const mapFile = path.join(getStateDirPath(cwd), 'repo-intel.json');
 
   if (fs.existsSync(mapFile)) {
     try {
