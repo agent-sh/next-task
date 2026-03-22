@@ -155,7 +155,7 @@ if (repoIntel && fs.existsSync(mapFile)) {
       ]);
       const syms = JSON.parse(json);
       if (syms) repoIntel.symbols[file] = syms;
-    } catch (e) { /* symbols unavailable - Phase 2 data absent */ }
+    } catch (e) { console.warn(`[WARN] Failed to get symbols for ${file}: ${e.message}`); }
   }
 }
 ```
