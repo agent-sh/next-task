@@ -91,7 +91,7 @@ const map = repoMap.load(process.cwd());
 if (map) {
   console.log(`Repo map loaded: ${map.stats.totalSymbols} symbols`);
 } else {
-  console.log('Repo map not found. Consider /repo-map init for faster lookups.');
+  console.log('Repo map not found. Consider /repo-intel init for faster lookups.');
 }
 ```
 

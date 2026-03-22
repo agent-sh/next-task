@@ -76,7 +76,7 @@ const repoMap = require(path.join(pluginRoot, 'lib/repo-map'));
 const map = repoMap.load(process.cwd());
 
 if (!map) {
-  console.log('Repo map missing. Suggest /repo-map init if needed.');
+  console.log('Repo map missing. Suggest /repo-intel init if needed.');
 }
 ```
 
@@ -201,19 +201,19 @@ If the exploration output includes repo-intel data (hotspots, bugspots, coupling
 const { getPluginRoot } = require('./lib/cross-platform');
 const path = require('path');
 
-const pluginRoot = getPluginRoot('git-map');
+const pluginRoot = getPluginRoot('repo-intel');
 let repoIntel = null;
 
 if (pluginRoot) {
   try {
-    const queries = require(path.join(pluginRoot, 'lib/git-map/queries'));
+    const queries = require(path.join(pluginRoot, 'lib/repo-intel/queries'));
     repoIntel = queries;
     console.log('[OK] repo-intel available - augmenting risk assessment');
   } catch {
-    console.log('[WARN] git-map plugin found but queries failed to load');
+    console.log('[WARN] repo-intel plugin found but queries failed to load');
   }
 } else {
-  console.log('[WARN] git-map plugin not installed - using heuristic risk assessment only');
+  console.log('[WARN] repo-intel plugin not installed - using heuristic risk assessment only');
 }
 ```
 
