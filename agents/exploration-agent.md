@@ -54,7 +54,7 @@ const repoMap = require(path.join(pluginRoot, 'lib/repo-map'));
 const map = repoMap.load(process.cwd());
 
 if (!map) {
-  console.log('Repo map not found. Consider: /repo-map init');
+  console.log('Repo map not found. Consider: /repo-intel init');
 } else {
   console.log(`Repo map loaded: ${Object.keys(map.files).length} files, ${map.stats.totalSymbols} symbols`);
 }
@@ -109,7 +109,7 @@ if (fs.existsSync(mapFile)) {
 
   console.log(`Repo intel loaded: hotspots=${repoIntel.hotspots?.length || 0}, bugspots=${repoIntel.bugspots?.length || 0}`);
 } else {
-  console.log('Repo intel not found. Consider: /git-map build');
+  console.log('Repo intel not found. Consider: /repo-intel init');
 }
 ```
 
