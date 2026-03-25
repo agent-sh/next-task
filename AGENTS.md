@@ -19,11 +19,9 @@
 
 ## Cross-Plugin Agents (from prepare-delivery)
 
-Phases 8-11 use agents/skills from the prepare-delivery plugin:
-- `prepare-delivery:delivery-validator`
-- `prepare-delivery:test-coverage-checker`
-- `prepare-delivery:orchestrate-review` (skill)
-- `prepare-delivery:validate-delivery` (skill)
+Phases 8-10 use agents from the prepare-delivery plugin:
+- `prepare-delivery:delivery-validator` - Phase 10 delivery validation
+- `prepare-delivery:test-coverage-checker` - Phase 8 pre-review gate
 
 ## Commands
 

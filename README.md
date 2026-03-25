@@ -88,8 +88,8 @@ The state directory is platform-aware: `.claude/`, `.opencode/`, or `.codex/`.
 |-------|---------|
 | discover-tasks | Fetch, filter, score, and present tasks for selection |
 
-Phases 8-11 use skills from the [prepare-delivery](https://github.com/agent-sh/prepare-delivery) plugin:
-`orchestrate-review`, `validate-delivery`, `check-test-coverage`.
+Phases 8-10 use agents/skills from the [prepare-delivery](https://github.com/agent-sh/prepare-delivery) plugin:
+`prepare-delivery:test-coverage-checker`, `prepare-delivery:delivery-validator`, `prepare-delivery:orchestrate-review`.
 
 ## Requirements
 
