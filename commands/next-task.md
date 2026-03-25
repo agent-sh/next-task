@@ -577,7 +577,7 @@ workflowState.completePhase({ approved, iterations, remaining });
 <phase-10>
 ## Phase 10: Delivery Validation
 
-**Agent**: `next-task:delivery-validator` (sonnet)
+**Agent**: `prepare-delivery:delivery-validator` (sonnet)
 
 ```javascript
 workflowState.startPhase('delivery-validation');
