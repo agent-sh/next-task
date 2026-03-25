@@ -387,11 +387,11 @@ implementation-agent (YOU ARE HERE)
         ↓
    SubagentStop hook triggers automatically
         ↓
-   Pre-review gates: deslop:deslop-agent + test-coverage-checker
+   Pre-review gates: deslop:deslop-agent + prepare-delivery:test-coverage-checker
         ↓
    Phase 9 review loop (must approve)
         ↓
-   delivery-validator (must approve)
+   prepare-delivery:delivery-validator (must approve)
         ↓
    sync-docs:sync-docs-agent
         ↓
@@ -434,9 +434,9 @@ ${gitLog}
 
 ---
 [STOP] STOPPING HERE - SubagentStop hook will trigger pre-review gates
-   → deslop:deslop-agent + test-coverage-checker (parallel)
+   → deslop:deslop-agent + prepare-delivery:test-coverage-checker (parallel)
    → Phase 9 review loop
-   → delivery-validator
+   → prepare-delivery:delivery-validator
    → sync-docs:sync-docs-agent
    → ship:ship
 ```

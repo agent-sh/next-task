@@ -70,7 +70,7 @@ Each phase must complete before the next starts:
 | Gate | Requirement |
 |------|-------------|
 | Implementation | Agent completes all plan steps |
-| Pre-Review | deslop-agent + test-coverage-checker + /simplify (parallel) |
+| Pre-Review | deslop:deslop-agent + prepare-delivery:test-coverage-checker + /simplify (parallel) |
 | Review Loop | Must approve (no open issues or override) |
 | Delivery | Tests pass, build passes |
 | Docs | Documentation updated |
@@ -78,7 +78,7 @@ Each phase must complete before the next starts:
 
 **Forbidden actions for agents:**
 - No agent may create PRs or push to remote (only ship:ship)
-- No agent may skip Phase 9, delivery-validator, or docs update
+- No agent may skip Phase 9, prepare-delivery:delivery-validator, or docs update
 </workflow-gates>
 
 ## Arguments
