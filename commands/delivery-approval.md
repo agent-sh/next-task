@@ -9,7 +9,7 @@ model: sonnet
 # /delivery-approval - Delivery Validation
 
 Validate that the current work is complete and ready to ship.
-This command runs the same validation as the workflow's delivery-validator agent.
+This command runs the same validation as the `prepare-delivery:delivery-validator` agent.
 
 ## Arguments
 
