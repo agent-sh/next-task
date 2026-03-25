@@ -103,6 +103,7 @@ Phases 8-11 use skills from the [prepare-delivery](https://github.com/agent-sh/p
 | Plugin | Used in |
 |--------|---------|
 | [deslop](https://github.com/agent-sh/deslop) | Phase 8 - AI slop cleanup |
+| [prepare-delivery](https://github.com/agent-sh/prepare-delivery) | Phases 8-10 - test coverage, review orchestration, delivery validation |
 | [sync-docs](https://github.com/agent-sh/sync-docs) | Phase 11 - documentation sync |
 | [ship](https://github.com/agent-sh/ship) | Phase 12 - PR creation, CI, merge |
 
