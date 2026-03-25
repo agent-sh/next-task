@@ -70,7 +70,7 @@ Each phase must complete before the next starts:
 | Gate | Requirement |
 |------|-------------|
 | Implementation | Agent completes all plan steps |
-| Pre-Review | deslop-agent + test-coverage-checker + /simplify (parallel) |
+| Pre-Review | deslop:deslop-agent + prepare-delivery:test-coverage-checker + /simplify (parallel) |
 | Review Loop | Must approve (no open issues or override) |
 | Delivery | Tests pass, build passes |
 | Docs | Documentation updated |
@@ -78,7 +78,7 @@ Each phase must complete before the next starts:
 
 **Forbidden actions for agents:**
 - No agent may create PRs or push to remote (only ship:ship)
-- No agent may skip Phase 9, delivery-validator, or docs update
+- No agent may skip Phase 9, prepare-delivery:delivery-validator, or docs update
 </workflow-gates>
 
 ## Arguments
@@ -363,7 +363,7 @@ await Task({
 <phase-8>
 ## Phase 8: Pre-Review Gates
 
-**Parallel**: `deslop:deslop-agent` (Task) + `next-task:test-coverage-checker` (Task) + `/simplify` (Skill, orchestrator)
+**Parallel**: `deslop:deslop-agent` (Task) + `prepare-delivery:test-coverage-checker` (Task) + `/simplify` (Skill, orchestrator)
 
 ```javascript
 workflowState.startPhase('pre-review-gates');
@@ -407,7 +407,7 @@ Thoroughness: normal
 
 Return structured results between === DESLOP_RESULT === markers.`
   }),
-  Task({ subagent_type: "next-task:test-coverage-checker", prompt: `Validate test coverage.${testGapsContext}` }),
+  Task({ subagent_type: "prepare-delivery:test-coverage-checker", prompt: `Validate test coverage.${testGapsContext}` }),
   Skill({ name: "simplify" })
 ]);
 
@@ -577,12 +577,12 @@ workflowState.completePhase({ approved, iterations, remaining });
 <phase-10>
 ## Phase 10: Delivery Validation
 
-**Agent**: `next-task:delivery-validator` (sonnet)
+**Agent**: `prepare-delivery:delivery-validator` (sonnet)
 
 ```javascript
 workflowState.startPhase('delivery-validation');
 const result = await Task({
-  subagent_type: "next-task:delivery-validator",
+  subagent_type: "prepare-delivery:delivery-validator",
   prompt: `Validate completion. Check: tests pass, build passes, requirements met.`
 });
 if (!result.approved) {

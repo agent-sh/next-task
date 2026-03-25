@@ -6,20 +6,24 @@
 
 - ci-fixer
 - ci-monitor
-- delivery-validator
 - exploration-agent
 - implementation-agent
 - planning-agent
 - simple-fixer
 - task-discoverer
-- test-coverage-checker
 - worktree-manager
 
 ## Skills
 
 - discover-tasks
-- orchestrate-review
-- validate-delivery
+
+## Cross-Plugin Agents (from prepare-delivery)
+
+Phases 8-11 use agents/skills from the prepare-delivery plugin:
+- `prepare-delivery:delivery-validator`
+- `prepare-delivery:test-coverage-checker`
+- `prepare-delivery:orchestrate-review` (skill)
+- `prepare-delivery:validate-delivery` (skill)
 
 ## Commands
 
