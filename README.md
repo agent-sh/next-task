@@ -48,7 +48,7 @@ The workflow has 12 phases. Phases 1-6 involve the user; phases 7-12 run autonom
 | 8 | Pre-Review Gates | deslop:deslop-agent + prepare-delivery:test-coverage-checker | Sonnet |
 | 9 | Review Loop | 4+ parallel reviewers | Sonnet |
 | 10 | Delivery Validation | prepare-delivery:delivery-validator | Sonnet |
-| 11 | Docs Update | sync-docs-agent | Sonnet |
+| 11 | Docs Update | sync-docs:sync-docs-agent | Sonnet |
 | 12 | Ship | ship:ship | - |
 
 **Human interaction happens exactly three times:** source/priority selection (Phase 1), task selection (Phase 2), and plan approval (Phase 6). Everything after Phase 6 is autonomous.
@@ -88,8 +88,8 @@ The state directory is platform-aware: `.claude/`, `.opencode/`, or `.codex/`.
 |-------|---------|
 | discover-tasks | Fetch, filter, score, and present tasks for selection |
 
-Phases 8-10 use agents/skills from the [prepare-delivery](https://github.com/agent-sh/prepare-delivery) plugin:
-`prepare-delivery:test-coverage-checker`, `prepare-delivery:delivery-validator`, `prepare-delivery:orchestrate-review`.
+Phases 8-10 use agents from the [prepare-delivery](https://github.com/agent-sh/prepare-delivery) plugin:
+`prepare-delivery:test-coverage-checker` (Phase 8), `prepare-delivery:delivery-validator` (Phase 10).
 
 ## Requirements
 
