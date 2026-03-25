@@ -363,7 +363,7 @@ await Task({
 <phase-8>
 ## Phase 8: Pre-Review Gates
 
-**Parallel**: `deslop:deslop-agent` (Task) + `next-task:test-coverage-checker` (Task) + `/simplify` (Skill, orchestrator)
+**Parallel**: `deslop:deslop-agent` (Task) + `prepare-delivery:test-coverage-checker` (Task) + `/simplify` (Skill, orchestrator)
 
 ```javascript
 workflowState.startPhase('pre-review-gates');
@@ -407,7 +407,7 @@ Thoroughness: normal
 
 Return structured results between === DESLOP_RESULT === markers.`
   }),
-  Task({ subagent_type: "next-task:test-coverage-checker", prompt: `Validate test coverage.${testGapsContext}` }),
+  Task({ subagent_type: "prepare-delivery:test-coverage-checker", prompt: `Validate test coverage.${testGapsContext}` }),
   Skill({ name: "simplify" })
 ]);
 
@@ -582,7 +582,7 @@ workflowState.completePhase({ approved, iterations, remaining });
 ```javascript
 workflowState.startPhase('delivery-validation');
 const result = await Task({
-  subagent_type: "next-task:delivery-validator",
+  subagent_type: "prepare-delivery:delivery-validator",
   prompt: `Validate completion. Check: tests pass, build passes, requirements met.`
 });
 if (!result.approved) {

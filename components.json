@@ -2,19 +2,15 @@
   "agents": [
     "ci-fixer",
     "ci-monitor",
-    "delivery-validator",
     "exploration-agent",
     "implementation-agent",
     "planning-agent",
     "simple-fixer",
     "task-discoverer",
-    "test-coverage-checker",
     "worktree-manager"
   ],
   "skills": [
-    "discover-tasks",
-    "orchestrate-review",
-    "validate-delivery"
+    "discover-tasks"
   ],
   "commands": [
     "delivery-approval",
