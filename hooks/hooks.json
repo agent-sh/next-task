@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/subagent-stop-guard.js",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-stop-guard.js\"",
             "timeout": 5
           }
         ]

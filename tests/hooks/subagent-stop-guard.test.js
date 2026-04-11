@@ -6,6 +6,7 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { getStateDir } = require('../../lib/platform/state-dir');
 
 const GUARD_SCRIPT = path.join(__dirname, '..', '..', 'hooks', 'subagent-stop-guard.js');
 
@@ -29,7 +30,8 @@ function runGuard(cwd) {
 /**
  * Create a temporary directory with optional flow.json content.
  */
-function createTempDir(flowContent, stateDir = '.claude') {
+function createTempDir(flowContent, stateDir) {
+  if (!stateDir) stateDir = getStateDir(os.tmpdir());
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-test-'));
   if (flowContent !== undefined) {
     const statePath = path.join(tmpDir, stateDir);
