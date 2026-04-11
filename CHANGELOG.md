@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-04-11
+
+### Fixed
+
+- SubagentStop hook now only fires during active /next-task workflows - previously fired on every subagent stop, wasting 136K+ tokens per unrelated agent
+- Switched hook from unconditional `prompt` type to guarded `command` type with Node.js script for cross-platform support
+- Added `getStateDirPath()` usage and `flow.phase` fallback per auto-reviewer feedback
+
+### Added
+
+- Test suite for hook guard (12 tests covering no-op and active workflow cases)
+- `npm test` script using `node:test` (zero dependencies)
+
+## [1.1.0]
+
 ### Added
 
 - Pre-fetch repo-intel at 3 phase boundaries (exploration, pre-review gates, review loop) to provide risk context without blocking agents
