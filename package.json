@@ -12,6 +12,9 @@
     "type": "git",
     "url": "https://github.com/agent-sh/next-task.git"
   },
+  "scripts": {
+    "test": "node --test tests/**/*.test.js"
+  },
   "homepage": "https://github.com/agent-sh/next-task",
   "keywords": [
     "task-management",
