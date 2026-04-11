@@ -15,14 +15,12 @@ const fs = require('fs');
 const path = require('path');
 
 // Reuse the platform-aware state directory detection
-const { getStateDir } = require('../lib/platform/state-dir');
+const { getStateDirPath } = require('../lib/platform/state-dir');
 
 const FLOW_FILE = 'flow.json';
 
 function main() {
-  const cwd = process.cwd();
-  const stateDir = getStateDir(cwd);
-  const flowPath = path.join(cwd, stateDir, FLOW_FILE);
+  const flowPath = path.join(getStateDirPath(), FLOW_FILE);
 
   // No flow.json = no active workflow = no-op
   if (!fs.existsSync(flowPath)) {
@@ -53,7 +51,7 @@ function buildEnforcementPrompt(flow) {
 
 A subagent has completed. Determine and execute the next workflow phase.
 
-Current phase: ${flow.phase}
+Current phase: ${flow.phase || 'Unknown'}
 Current status: ${flow.status}
 Task: ${flow.task?.title || 'Unknown'}
 
