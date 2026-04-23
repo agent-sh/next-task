@@ -52,8 +52,10 @@ const repoMap = require(path.join(pluginRoot, 'lib/repo-map'));
 const map = repoMap.load(process.cwd());
 
 if (!map) {
-  // Repo-intel symbol map not present. Same prompt as above.
-  await AskUserQuestion({ questions: [{ question: 'Generate repo-intel?', description: 'No symbol map. /repo-intel init populates it (via agentsys). Takes ~10-30 seconds.', options: [{ label: 'Yes, run init', value: 'yes' }, { label: 'Skip', value: 'no' }] }] });
+  // Repo-intel symbol map not present. Subagents cannot prompt the user;
+  // the orchestrator (/next-task command) is responsible for asking
+  // up front. Just log and proceed without symbol-map-derived signals.
+  console.log('[INFO] Repo-intel symbol map not loaded - proceeding without symbol-derived context.');
 } else {
   console.log(`Repo map loaded: ${Object.keys(map.files).length} files, ${map.stats.totalSymbols} symbols`);
 }
@@ -108,8 +110,10 @@ if (fs.existsSync(mapFile)) {
 
   console.log(`Repo intel loaded: hotspots=${repoIntel.hotspots?.length || 0}, bugspots=${repoIntel.bugspots?.length || 0}`);
 } else {
-  // Repo-intel not present. Surface to the user instead of silently skipping:
-  await AskUserQuestion({ questions: [{ question: 'Generate repo-intel?', description: 'No <stateDir>/repo-intel.json found. Generating it (via /repo-intel init in agentsys) enables risk-aware exploration. Takes ~10-30 seconds.', options: [{ label: 'Yes, run init', value: 'yes' }, { label: 'Skip (proceed without)', value: 'no' }] }] });
+  // Repo-intel artifact not present. Subagents cannot prompt the user;
+  // the orchestrator (/next-task command) is responsible for asking up
+  // front. Just log and proceed without git-derived signals.
+  console.log('[INFO] Repo-intel artifact not loaded - proceeding without git-history-derived context.');
 }
 ```
 
