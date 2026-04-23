@@ -55,7 +55,6 @@ Before implementation:
 const { getPluginRoot } = require('./lib/cross-platform');
 const path = require('path');
 
-const pluginRoot = getPluginRoot('next-task');
 if (!pluginRoot) {
   console.error('Error: Could not locate next-task plugin installation');
   process.exit(1);
@@ -79,7 +78,6 @@ console.log(`Steps: ${plan.steps.length}`);
 const { getPluginRoot } = require('./lib/cross-platform');
 const path = require('path');
 
-const pluginRoot = getPluginRoot('next-task');
 if (!pluginRoot) {
   console.error('Error: Could not locate next-task plugin installation');
   process.exit(1);

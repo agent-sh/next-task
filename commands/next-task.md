@@ -135,7 +135,6 @@ Key functions:
 ```javascript
 const { getPluginRoot } = require('./lib/cross-platform');
 const path = require('path');
-const pluginRoot = getPluginRoot('next-task');
 const workflowState = require(path.join(pluginRoot, 'lib/state/workflow-state.js'));
 const args = '$ARGUMENTS'.split(' ').filter(Boolean);
 
@@ -282,8 +281,8 @@ workflowState.startPhase('exploration');
 // Pre-fetch repo-intel for Phase 4
 let explorationIntelContext = '';
 try {
-  const { binary } = require('@agentsys/lib');
-  const { getStateDirPath } = require('@agentsys/lib/platform/state-dir');
+  const { binary } = require(`${pluginRoot}/lib/agentsys`).get();
+  const { libRoot } = require(`${pluginRoot}/lib/agentsys`).get(); const { getStateDirPath } = require(`${libRoot}/platform/state-dir`);
   const fs = require('fs');
   const cwd = process.cwd();
   const path = require('path');
@@ -371,8 +370,8 @@ workflowState.startPhase('pre-review-gates');
 // Pre-fetch repo-intel for Phase 8
 let testGapsContext = '';
 try {
-  const { binary } = require('@agentsys/lib');
-  const { getStateDirPath } = require('@agentsys/lib/platform/state-dir');
+  const { binary } = require(`${pluginRoot}/lib/agentsys`).get();
+  const { libRoot } = require(`${pluginRoot}/lib/agentsys`).get(); const { getStateDirPath } = require(`${libRoot}/platform/state-dir`);
   const fs = require('fs');
   const path = require('path');
   const cwd = process.cwd();
@@ -448,11 +447,11 @@ workflowState.startPhase('review-loop');
 // Pre-fetch repo-intel for Phase 9
 let diffRiskContext = '';
 try {
-  const { binary } = require('@agentsys/lib');
+  const { binary } = require(`${pluginRoot}/lib/agentsys`).get();
   const fs = require('fs');
   const path = require('path');
   const cp = require('child_process');
-  const { getStateDirPath } = require('@agentsys/lib/platform/state-dir');
+  const { libRoot } = require(`${pluginRoot}/lib/agentsys`).get(); const { getStateDirPath } = require(`${libRoot}/platform/state-dir`);
   const cwd = process.cwd();
   const mapFile = path.join(getStateDirPath(cwd), 'repo-intel.json');
 

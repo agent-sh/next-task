@@ -42,7 +42,6 @@ Before planning, you should have:
 const { getPluginRoot } = require('./lib/cross-platform');
 const path = require('path');
 
-const pluginRoot = getPluginRoot('next-task');
 if (!pluginRoot) {
   console.error('Error: Could not locate next-task plugin installation');
   process.exit(1);
@@ -66,7 +65,6 @@ Use repo-map to identify dependencies and exports before writing the plan:
 const { getPluginRoot } = require('./lib/cross-platform');
 const path = require('path');
 
-const pluginRoot = getPluginRoot('next-task');
 if (!pluginRoot) {
   console.error('Error: Could not locate next-task plugin installation');
   process.exit(1);

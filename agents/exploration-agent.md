@@ -22,7 +22,6 @@ This requires careful investigation and connecting disparate pieces of informati
 const { getPluginRoot } = require('./lib/cross-platform');
 const path = require('path');
 
-const pluginRoot = getPluginRoot('next-task');
 if (!pluginRoot) {
   console.error('Error: Could not locate next-task plugin installation');
   process.exit(1);
@@ -44,7 +43,6 @@ Use the cached repo-map for faster symbol discovery and dependency hints:
 const { getPluginRoot } = require('./lib/cross-platform');
 const path = require('path');
 
-const pluginRoot = getPluginRoot('next-task');
 if (!pluginRoot) {
   console.error('Error: Could not locate next-task plugin installation');
   process.exit(1);
@@ -67,11 +65,11 @@ Use cached repo-intel data for risk-aware file discovery. This enriches explorat
 This step is optional - if repo-intel is unavailable, proceed with keyword-based exploration only.
 
 ```javascript
-const { binary } = require('@agentsys/lib');
+const { binary } = require(`${pluginRoot}/lib/agentsys`).get();
 const fs = require('fs');
 const path = require('path');
 
-const { getStateDirPath } = require('@agentsys/lib/platform/state-dir');
+const { libRoot } = require(`${pluginRoot}/lib/agentsys`).get(); const { getStateDirPath } = require(`${libRoot}/platform/state-dir`);
 const cwd = process.cwd();
 const mapFile = path.join(getStateDirPath(cwd), 'repo-intel.json');
 
