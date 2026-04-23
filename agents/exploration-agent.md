@@ -63,9 +63,19 @@ if (!map) {
 
 ## Phase 1.6: Load Repo Intel (If Available)
 
-Use cached repo-intel data for risk-aware file discovery. This enriches exploration with git history intelligence - hotspots, bug density, ownership, and coupling - so the planning agent receives risk context alongside code context.
+Use cached repo-intel data for risk-aware file discovery. This enriches exploration with git history intelligence so the planning agent receives risk context alongside code context.
 
 This step is optional - if repo-intel is unavailable, proceed with keyword-based exploration only.
+
+### What you're loading and why
+
+You're calling three `repoIntel.queries` functions on the cached `repo-intel.json`:
+
+- **`hotspots(cwd, { limit: 15 })`** - the 15 files with the highest recency-weighted change count. Returns `Array<{ path, changes, recentChanges, score, authors, aiRatio, bugFixes }>`. Use these to **prioritise where the new task will land** - if your task touches a hot file (high `score`, recent activity), call it out so planning knows reviewers will scrutinise it. `recentChanges / changes` close to 1 = active development; close to 0 = legacy code that's stable.
+- **`bugspots(cwd, { limit: 10 })`** - the 10 files where the largest fraction of recent commits were bug fixes. Returns `Array<{ path, bugFixRate, totalChanges, bugFixes, lastBugFix }>`. **`bugFixRate > 0.5` means a fragile file** - more than half of its history is fixes for prior bugs. If your task touches one of these, plan extra tests + a careful review.
+- **`busFactor(cwd)`** - knowledge-concentration risk. Returns `{ busFactor, criticalOwners, atRiskAreas }`. `busFactor === 1` is the danger signal - one person knows everything. `atRiskAreas` lists directories owned by stale (>90 days inactive) contributors. If your task touches an at-risk area, surface that to planning so the PR description can request the original owner's review (or document the area).
+
+Pass these into the planning context as **risk hints**, not as filters - exploration still finds the right files via keyword search; repo-intel just adds a "watch out for X" overlay.
 
 ```javascript
 const { binary } = require(`${pluginRoot}/lib/agentsys`).get();
