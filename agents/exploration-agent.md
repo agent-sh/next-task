@@ -52,7 +52,8 @@ const repoMap = require(path.join(pluginRoot, 'lib/repo-map'));
 const map = repoMap.load(process.cwd());
 
 if (!map) {
-  console.log('Repo map not found. Consider: /repo-intel init');
+  // Repo-intel symbol map not present. Same prompt as above.
+  await AskUserQuestion({ questions: [{ question: 'Generate repo-intel?', description: 'No symbol map. /repo-intel init populates it (via agentsys). Takes ~10-30 seconds.', options: [{ label: 'Yes, run init', value: 'yes' }, { label: 'Skip', value: 'no' }] }] });
 } else {
   console.log(`Repo map loaded: ${Object.keys(map.files).length} files, ${map.stats.totalSymbols} symbols`);
 }
@@ -107,7 +108,8 @@ if (fs.existsSync(mapFile)) {
 
   console.log(`Repo intel loaded: hotspots=${repoIntel.hotspots?.length || 0}, bugspots=${repoIntel.bugspots?.length || 0}`);
 } else {
-  console.log('Repo intel not found. Consider: /repo-intel init');
+  // Repo-intel not present. Surface to the user instead of silently skipping:
+  await AskUserQuestion({ questions: [{ question: 'Generate repo-intel?', description: 'No <stateDir>/repo-intel.json found. Generating it (via /repo-intel init in agentsys) enables risk-aware exploration. Takes ~10-30 seconds.', options: [{ label: 'Yes, run init', value: 'yes' }, { label: 'Skip (proceed without)', value: 'no' }] }] });
 }
 ```
 

@@ -681,3 +681,13 @@ try {
 - Explicit ship:ship handoff for PR workflow
 
 Begin workflow now.
+
+
+## Repo-Intel Data
+
+**Needs:** `<stateDir>/repo-intel.json` (in `.claude/`, `.opencode/`, or `.codex/`).
+
+**Missing?** Ask the user via `AskUserQuestion` whether to run `/repo-intel init` (~10-30s, scans git history). On decline, proceed without the data - this command degrades gracefully.
+
+**Binary:** `agent-analyzer` auto-downloads to `~/.agent-sh/bin/` from `agent-sh/agent-analyzer` GitHub releases (~10 MB) on first use. The `lib/agentsys` resolver locates the agentsys install (CC marketplace clone, npm global, or sibling repo) - users see a clear error message if neither agentsys nor the binary can be found.
+
