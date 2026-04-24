@@ -6,7 +6,6 @@ tools:
   - Glob
   - Grep
   - Bash(git:*)
-  - Task
 model: opus
 ---
 
@@ -58,28 +57,6 @@ console.log(`Planning for: #${task.id} - ${task.title}`);
 console.log(`Key files identified: ${explorationResults?.keyFiles?.join(', ')}`);
 ```
 
-## Phase 1.5: Check Repo Map (If Available)
-
-Use repo-map to identify dependencies and exports before writing the plan:
-
-```javascript
-const { getPluginRoot } = require('./lib/cross-platform');
-const path = require('path');
-
-const pluginRoot = getPluginRoot('next-task');
-if (!pluginRoot) {
-  console.error('Error: Could not locate next-task plugin installation');
-  process.exit(1);
-}
-
-const repoMap = require(path.join(pluginRoot, 'lib/repo-map'));
-const map = repoMap.load(process.cwd());
-
-if (!map) {
-  console.log('Repo map missing. Suggest /repo-intel init if needed.');
-}
-```
-
 ## Phase 2: Analyze Requirements
 
 Deeply understand what needs to be done:
@@ -107,18 +84,20 @@ Deeply understand what needs to be done:
 
 ## Phase 3: Review Existing Patterns
 
-Look at similar implementations in the codebase:
+Look at similar implementations in the codebase using the Grep and Glob
+tools (the frontmatter does not grant arbitrary Bash access; use the
+dedicated tools instead of shelling out to `rg` / `ls`):
 
-```bash
-# Find similar patterns
-rg -l "similar_feature|related_code" --type ts --type js
+- `Grep` for similar patterns by keyword or identifier, filtered by
+  `type: "ts"` or `type: "js"` as appropriate.
+- `Glob` for test-directory existence (e.g. `tests/**/*.test.*`,
+  `__tests__/**/*.*`, `spec/**/*.*`).
+- `Grep` for utility exports in `lib/`, `utils/`, `helpers/` filtered
+  to your project's language.
 
-# Review existing tests for patterns
-ls -la tests/ __tests__/ spec/ 2>/dev/null
-
-# Check for relevant utilities
-rg "export.*function" lib/ utils/ helpers/ 2>/dev/null | head -20
-```
+The exploration-agent has already done the bulk of this in Phase 4; use
+its report and only re-query when the report is missing a pattern you
+need to inform the plan.
 
 ## Phase 4: Design Implementation Plan
 

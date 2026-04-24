@@ -6,8 +6,6 @@ tools:
   - Glob
   - Grep
   - Bash(git:*)
-  - LSP
-  - Task
 model: sonnet
 ---
 
