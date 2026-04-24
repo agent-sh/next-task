@@ -307,21 +307,27 @@ try {
     // Slop-fixes: partitioned per-category subsets so the explorer
     // flags slop-heavy areas up front and the planner doesn't build
     // new features on top of dead code / wrappers / broken checks.
-    // Each category capped at 10 findings.
+    // Single-pass partition + count — each category string lives in
+    // exactly one place (SLOP_CATS) and we walk the fixes once.
     const slopRaw = q(['repo-intel', 'query', 'slop-fixes', '--map-file', mapFile, cwd]);
     const slopAll = Array.isArray(slopRaw) ? slopRaw : (slopRaw?.fixes || []);
-    intel.slop = {
-      orphanExports: slopAll.filter((f) => f.category === 'orphan-export').slice(0, 10),
-      passthroughWrappers: slopAll.filter((f) => f.category === 'passthrough-wrapper').slice(0, 10),
-      alwaysTrueConditions: slopAll.filter((f) => f.category === 'always-true-condition').slice(0, 10),
-      commentedOutCode: slopAll.filter((f) => f.category === 'commented-out-code').slice(0, 10),
-      counts: {
-        orphanExports: slopAll.filter((f) => f.category === 'orphan-export').length,
-        passthroughWrappers: slopAll.filter((f) => f.category === 'passthrough-wrapper').length,
-        alwaysTrueConditions: slopAll.filter((f) => f.category === 'always-true-condition').length,
-        commentedOutCode: slopAll.filter((f) => f.category === 'commented-out-code').length
-      }
+    const SLOP_CATS = {
+      'orphan-export': 'orphanExports',
+      'passthrough-wrapper': 'passthroughWrappers',
+      'always-true-condition': 'alwaysTrueConditions',
+      'commented-out-code': 'commentedOutCode'
     };
+    const SAMPLE_CAP = 10;
+    intel.slop = {
+      orphanExports: [], passthroughWrappers: [], alwaysTrueConditions: [], commentedOutCode: [],
+      counts: { orphanExports: 0, passthroughWrappers: 0, alwaysTrueConditions: 0, commentedOutCode: 0 }
+    };
+    for (const fix of slopAll) {
+      const key = SLOP_CATS[fix.category];
+      if (!key) continue;
+      intel.slop.counts[key] += 1;
+      if (intel.slop[key].length < SAMPLE_CAP) intel.slop[key].push(fix);
+    }
 
     // Slop-targets: Opus-tier cross-file targets (wrapper towers,
     // single-impl traits, cliche clusters). Planner prefers to avoid

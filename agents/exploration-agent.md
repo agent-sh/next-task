@@ -180,13 +180,19 @@ ${"Full" or "partial — <which queries were null>" or "unavailable — report b
 
 ```javascript
 workflowState.startPhase('exploration');
+
+// `repoIntel` below should hold the structured signals the
+// orchestrator passed into your prompt as `explorationIntelContext`.
+// Reconstruct it from what you were given — do NOT re-run the
+// analyzer queries here (the command already did). If the context
+// was empty/unavailable, pass `null` and mention it in the report.
 workflowState.completePhase({
   filesAnalyzed: analyzedFiles.length,
   keyFiles: primaryFiles.map(f => f.path),
   patterns: detectedPatterns,
   dependencies: dependencyGraph,
   recommendations,
-  repoIntel: receivedIntel   // pass through what the command gave you
+  repoIntel: repoIntelFromPrompt   // the object you parsed from explorationIntelContext, or null
 });
 ```
 
