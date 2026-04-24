@@ -445,8 +445,24 @@ workflowState.completePhase({
 ```javascript
 workflowState.startPhase('review-loop');
 
-// Pre-fetch repo-intel for Phase 9
+// Pre-fetch repo-intel for Phase 9. Four analyzer signals so the
+// reviewer agents don't have to re-derive them from file reads:
+//
+//   diff-risk    → existing: highest-risk changed files
+//   slop-fixes   → concrete mechanical findings on changed files
+//                  (empty catches, tautological tests, passthrough
+//                  wrappers, always-true conditions, commented-out
+//                  code, orphan exports, etc)
+//   entry-points → execution surfaces in the diff so reviewers don't
+//                  flag `main`/Cargo bins as "missing docs"
+//   slop-targets → cross-file signals (wrapper towers, single-impl
+//                  traits, cliche clusters) that no per-file pass
+//                  would catch
+//
+// All degrade gracefully: missing binary / missing map → empty
+// context, no review regression.
 let diffRiskContext = '';
+let slopContext = '';
 try {
   const { binary } = require('@agentsys/lib');
   const fs = require('fs');
@@ -462,6 +478,8 @@ try {
     }).trim().split('\n').filter(Boolean);
 
     if (changedFiles.length > 0) {
+      const changedSet = new Set(changedFiles.map(f => f.replace(/\\/g, '/')));
+
       try {
         const diffRisk = JSON.parse(binary.runAnalyzer([
           'repo-intel', 'query', 'diff-risk',
@@ -470,6 +488,59 @@ try {
         ]));
         if (diffRisk) {
           diffRiskContext = '\n\nRepo intel diff-risk for changed files (use to focus review on highest-risk files):\n' + JSON.stringify(diffRisk, null, 2);
+        }
+      } catch (e) { /* unavailable */ }
+
+      // Slop-fixes: filter to just the changed files so reviewers
+      // don't get distracted by slop in unrelated areas. Highest-
+      // confidence findings first; cap at 30 to keep the prompt
+      // bounded on large diffs.
+      try {
+        const slopRaw = JSON.parse(binary.runAnalyzer([
+          'repo-intel', 'query', 'slop-fixes',
+          '--map-file', mapFile, cwd
+        ]));
+        const allFixes = Array.isArray(slopRaw) ? slopRaw : (slopRaw?.fixes || []);
+        const changedFixes = allFixes.filter(f => {
+          const p = (f.action?.path || '').replace(/\\/g, '/');
+          return changedSet.has(p);
+        });
+        if (changedFixes.length > 0) {
+          changedFixes.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+          slopContext += '\n\nPre-computed slop findings on the changed files (use these directly - do not re-scan):\n' + JSON.stringify(changedFixes.slice(0, 30), null, 2);
+        }
+      } catch (e) { /* unavailable */ }
+
+      // Entry-points touching changed files — reviewers use this to
+      // avoid flagging execution surfaces as "missing prose docs".
+      try {
+        const entryPoints = JSON.parse(binary.runAnalyzer([
+          'repo-intel', 'query', 'entry-points',
+          '--map-file', mapFile, cwd
+        ]));
+        if (Array.isArray(entryPoints) && entryPoints.length > 0) {
+          const changedEps = entryPoints.filter(ep => changedSet.has((ep.path || '').replace(/\\/g, '/')));
+          if (changedEps.length > 0) {
+            slopContext += '\n\nEntry points in changed files (execution surfaces - do not flag as missing docs):\n' + JSON.stringify(changedEps, null, 2);
+          }
+        }
+      } catch (e) { /* unavailable */ }
+
+      // Slop-targets: cross-file clusters that intersect the diff.
+      // Cap at 15 after intersection.
+      try {
+        const targetsRaw = JSON.parse(binary.runAnalyzer([
+          'repo-intel', 'query', 'slop-targets',
+          '--limit', '50',
+          '--map-file', mapFile, cwd
+        ]));
+        const targets = Array.isArray(targetsRaw) ? targetsRaw : (targetsRaw?.targets || []);
+        const touching = targets.filter(t => {
+          const p = (t.path || t.file || '').replace(/\\/g, '/');
+          return changedSet.has(p);
+        }).slice(0, 15);
+        if (touching.length > 0) {
+          slopContext += '\n\nSlop targets touching the changed files (cross-file signals - wrapper towers, single-impl traits, cliche clusters):\n' + JSON.stringify(touching, null, 2);
         }
       } catch (e) { /* unavailable */ }
     }
@@ -516,19 +587,19 @@ const reviewResults = await Promise.all([
   Task({ subagent_type: 'general-purpose', model: 'sonnet',
     prompt: `You are a code quality reviewer. Review these files: ${files.join(', ')}
 Focus: Style and consistency, Best practices, Bugs and logic errors, Error handling, Maintainability, Duplication
-Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}` }),
+Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}${slopContext}` }),
   Task({ subagent_type: 'general-purpose', model: 'sonnet',
     prompt: `You are a security reviewer. Review these files: ${files.join(', ')}
 Focus: Auth/authz flaws, Input validation, Injection risks, Secrets exposure, Insecure defaults
-Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}` }),
+Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}${slopContext}` }),
   Task({ subagent_type: 'general-purpose', model: 'sonnet',
     prompt: `You are a performance reviewer. Review these files: ${files.join(', ')}
 Focus: N+1 queries, Blocking operations, Hot path inefficiencies, Memory leaks
-Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}` }),
+Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}${slopContext}` }),
   Task({ subagent_type: 'general-purpose', model: 'sonnet',
     prompt: `You are a test coverage reviewer. Review these files: ${files.join(', ')}
 Focus: Missing tests, Edge case coverage, Test quality, Integration needs, Mock appropriateness
-Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}` })
+Return findings as JSON array with: file, line, severity (critical/high/medium/low), description, suggestion${diffRiskContext}${slopContext}` })
 ]);
 
 // Add conditional specialists based on signals (spawn in parallel with appropriate prompts)
