@@ -297,14 +297,56 @@ try {
     intel.busFactor = q(['repo-intel', 'query', 'bus-factor', '--map-file', mapFile, cwd]);
     intel.conventions = q(['repo-intel', 'query', 'conventions', '--map-file', mapFile, cwd]);
 
+    // Entry-points: execution surfaces (Cargo [[bin]], main() fns,
+    // framework configs). Explorer + planner use this to decide
+    // whether a file is a library surface or an execution surface —
+    // the plan for "change behavior X" differs depending on which.
+    const epRaw = q(['repo-intel', 'query', 'entry-points', '--map-file', mapFile, cwd]);
+    intel.entryPoints = Array.isArray(epRaw) ? epRaw : (epRaw?.entryPoints || []);
+
+    // Slop-fixes: partitioned per-category subsets so the explorer
+    // flags slop-heavy areas up front and the planner doesn't build
+    // new features on top of dead code / wrappers / broken checks.
+    // Single-pass partition + count — each category string lives in
+    // exactly one place (SLOP_CATS) and we walk the fixes once.
+    const slopRaw = q(['repo-intel', 'query', 'slop-fixes', '--map-file', mapFile, cwd]);
+    const slopAll = Array.isArray(slopRaw) ? slopRaw : (slopRaw?.fixes || []);
+    const SLOP_CATS = {
+      'orphan-export': 'orphanExports',
+      'passthrough-wrapper': 'passthroughWrappers',
+      'always-true-condition': 'alwaysTrueConditions',
+      'commented-out-code': 'commentedOutCode'
+    };
+    const SAMPLE_CAP = 10;
+    intel.slop = {
+      orphanExports: [], passthroughWrappers: [], alwaysTrueConditions: [], commentedOutCode: [],
+      counts: { orphanExports: 0, passthroughWrappers: 0, alwaysTrueConditions: 0, commentedOutCode: 0 }
+    };
+    for (const fix of slopAll) {
+      const key = SLOP_CATS[fix.category];
+      if (!key) continue;
+      intel.slop.counts[key] += 1;
+      if (intel.slop[key].length < SAMPLE_CAP) intel.slop[key].push(fix);
+    }
+
+    // Slop-targets: Opus-tier cross-file targets (wrapper towers,
+    // single-impl traits, cliche clusters). Planner prefers to avoid
+    // building on top of these.
+    const targetsRaw = q(['repo-intel', 'query', 'slop-targets', '--top', '20', '--map-file', mapFile, cwd]);
+    intel.slopTargets = Array.isArray(targetsRaw) ? targetsRaw : (targetsRaw?.targets || []);
+
     const parts = [];
     if (intel.hotspots?.length) parts.push(`Hotspots (most volatile files):\n${JSON.stringify(intel.hotspots, null, 2)}`);
     if (intel.bugspots?.length) parts.push(`Bugspots (highest bug-fix density):\n${JSON.stringify(intel.bugspots, null, 2)}`);
     if (intel.busFactor) parts.push(`Bus factor:\n${JSON.stringify(intel.busFactor, null, 2)}`);
     if (intel.conventions) parts.push(`Conventions (match this style):\n${JSON.stringify(intel.conventions, null, 2)}`);
+    if (intel.entryPoints.length) parts.push(`Entry points (execution surfaces - distinguish from library APIs):\n${JSON.stringify(intel.entryPoints.slice(0, 30), null, 2)}`);
+    const hasSlop = Object.values(intel.slop.counts).some((n) => n > 0);
+    if (hasSlop) parts.push(`Slop findings (orphan-exports / passthrough-wrappers / always-true-conditions / commented-out-code - areas to steer new features AWAY from):\n${JSON.stringify(intel.slop, null, 2)}`);
+    if (intel.slopTargets.length) parts.push(`Slop targets (cross-file clusters - wrapper towers, single-impl traits, cliche clusters):\n${JSON.stringify(intel.slopTargets.slice(0, 15), null, 2)}`);
 
     if (parts.length > 0) {
-      explorationIntelContext = '\n\nRepo intel context (use to prioritize risky files and match coding style):\n' + parts.join('\n\n');
+      explorationIntelContext = '\n\nRepo intel context (use to prioritize risky files, match coding style, and steer clear of slop-heavy areas):\n' + parts.join('\n\n');
     }
   }
 } catch (e) { /* repo-intel unavailable */ }
@@ -324,10 +366,14 @@ await Task({
 
 ```javascript
 workflowState.startPhase('planning');
+// Reuse the exploration intel context so the planner sees the same
+// slop / entry-points / hotspots signals the explorer had. Stops the
+// planner from proposing work on top of orphan-exports or
+// passthrough-wrappers without knowing they're dead.
 const planOutput = await Task({
   subagent_type: "next-task:planning-agent",
   model: "opus",
-  prompt: `Design implementation plan for task #${state.task.id}. Output structured JSON between === PLAN_START === and === PLAN_END === markers.`
+  prompt: `Design implementation plan for task #${state.task.id}. Output structured JSON between === PLAN_START === and === PLAN_END === markers.${explorationIntelContext}`
 });
 ```
 </phase-5>

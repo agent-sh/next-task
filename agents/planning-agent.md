@@ -323,6 +323,25 @@ Apply these rules when incorporating signals into the plan:
 - **diffRisk score**: Use as an ordering signal - review highest-risk files first.
 - **painspots** (hotspot × bug rate × complexity): The highest-confidence risk signal. If a planned file appears in painspots, it needs careful review, thorough tests, and potentially a smaller change scope. Flag as CRITICAL if `painScore > 2.0`.
 
+### Interpreting slop signals (from explorationIntelContext)
+
+The orchestrator now pre-fetches slop signals and passes them in your prompt as part of `explorationIntelContext`. When a planned file overlaps with one of these, adjust the plan:
+
+- **`slop.orphanExports` ∩ planned file**: The analyzer has proved this exported symbol is unreachable. Do NOT extend dead code. Either (a) delete the orphan as a prep step in the plan, or (b) re-wire the call graph to revive it *before* building new features on it — make that an explicit early step.
+- **`slop.passthroughWrappers` ∩ planned file**: The function forwards identically to another. Decide in the plan: either document WHY this layer must exist (abstraction boundary, future extension point) or inline it as part of the change. Don't silently extend a trivial wrapper.
+- **`slop.alwaysTrueConditions` ∩ planned file**: A latent bug near your work. Plan either to fix in passing (if the fix is small and in-scope) or to file a follow-up issue explicitly. Don't ignore it silently — a tautological check in an area you're touching is a pre-existing landmine.
+- **`slop.commentedOutCode` ∩ planned file**: Cleanup opportunity. Plan a deletion step alongside the feature work — this is a net positive diff and reduces reviewer confusion.
+- **`slopTargets` touching planned files** (wrapper towers, single-impl traits, cliche clusters): Cross-file patterns. Evaluate before extending them. Sometimes building cleanly beside the pattern is better than perpetuating it. Call out the choice explicitly in the plan's Architecture Decision section.
+
+When a planned file has significant slop, include a line in the plan's risk section: `"The ${file} area has ${N} pre-existing slop findings — decided to ${fix-in-scope | defer | refactor-first}"`.
+
+### Interpreting entry-points
+
+**`entryPoints` ∩ planned file**: The file is an execution surface (Cargo `[[bin]]`, `main()`, framework config, package.json `bin`). Signature changes or loading-contract changes are user-visible:
+
+- Plans touching entry points should include a rollout-notes step (migration path for users, version bump, changelog entry).
+- Library-facing changes in non-entry-point files don't need this — distinguish clearly in the plan.
+
 ### Output format for risk signals
 
 Include a `### Data-Backed Risk Signals` subsection in the plan output. Example:
@@ -341,6 +360,13 @@ Potentially missing files (high coupling with planned files):
 
 Pain spots (hotspot × complexity × bug density):
 - `src/auth.ts` - painScore=2.3 (CRITICAL), complexityMax=28, bugFixRate=0.45
+
+Slop overlap with planned files:
+- `src/auth.ts`: 1 orphan-export (`legacyHandler`, confidence 0.75) — plan step added to delete before new feature
+- `src/middleware.ts`: 1 passthrough-wrapper (`wrapAuth`) — decided to inline as part of change
+
+Entry points touched:
+- `src/cli/main.rs` (Cargo [[bin]] target) — plan includes changelog + migration note
 ```
 
 If no repo-intel data is available, omit this subsection entirely.
