@@ -513,25 +513,36 @@ try {
 
       // Entry-points touching changed files — reviewers use this to
       // avoid flagging execution surfaces as "missing prose docs".
+      // Defensively unwrap object-wrapped responses to match the
+      // shape handling of the other two queries.
       try {
-        const entryPoints = JSON.parse(binary.runAnalyzer([
+        const epRaw = JSON.parse(binary.runAnalyzer([
           'repo-intel', 'query', 'entry-points',
           '--map-file', mapFile, cwd
         ]));
-        if (Array.isArray(entryPoints) && entryPoints.length > 0) {
+        const entryPoints = Array.isArray(epRaw) ? epRaw : (epRaw?.entryPoints || []);
+        if (entryPoints.length > 0) {
           const changedEps = entryPoints.filter(ep => changedSet.has((ep.path || '').replace(/\\/g, '/')));
           if (changedEps.length > 0) {
-            slopContext += '\n\nEntry points in changed files (execution surfaces - do not flag as missing docs):\n' + JSON.stringify(changedEps, null, 2);
+            // Cap to 30 in case the diff touches a binary crate with
+            // many bin targets or a repo with many framework configs.
+            const capped = changedEps.slice(0, 30);
+            slopContext += '\n\nEntry points in changed files (execution surfaces - do not flag as missing docs):\n' + JSON.stringify(capped, null, 2);
           }
         }
       } catch (e) { /* unavailable */ }
 
       // Slop-targets: cross-file clusters that intersect the diff.
-      // Cap at 15 after intersection.
+      // The `--top` flag bounds results per tier in the analyzer;
+      // slop-targets doesn't currently accept a file filter so we
+      // request a generous top (200) to reduce the chance that a
+      // relevant target for a changed file is truncated before
+      // intersection. JS-side cap of 15 after intersection keeps the
+      // reviewer prompt bounded.
       try {
         const targetsRaw = JSON.parse(binary.runAnalyzer([
           'repo-intel', 'query', 'slop-targets',
-          '--limit', '50',
+          '--top', '200',
           '--map-file', mapFile, cwd
         ]));
         const targets = Array.isArray(targetsRaw) ? targetsRaw : (targetsRaw?.targets || []);
