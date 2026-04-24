@@ -88,12 +88,12 @@ Look at similar implementations in the codebase using the Grep and Glob
 tools (the frontmatter does not grant arbitrary Bash access; use the
 dedicated tools instead of shelling out to `rg` / `ls`):
 
-- `Grep` for similar patterns by keyword or identifier, filtered by
-  `type: "ts"` or `type: "js"` as appropriate.
+- `Grep` for similar patterns by keyword or identifier, scoped via
+  `glob: "*.{ts,tsx,js,jsx}"` or the appropriate per-language pattern.
 - `Glob` for test-directory existence (e.g. `tests/**/*.test.*`,
   `__tests__/**/*.*`, `spec/**/*.*`).
-- `Grep` for utility exports in `lib/`, `utils/`, `helpers/` filtered
-  to your project's language.
+- `Grep` for utility exports in `lib/`, `utils/`, `helpers/` scoped
+  to your project's language via a `glob` pattern.
 
 The exploration-agent has already done the bulk of this in Phase 4; use
 its report and only re-query when the report is missing a pattern you
