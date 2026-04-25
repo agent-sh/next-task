@@ -17,12 +17,6 @@
 
 - discover-tasks
 
-## Cross-Plugin Agents (from prepare-delivery)
-
-Phases 8-10 use agents from the prepare-delivery plugin:
-- `prepare-delivery:delivery-validator` - Phase 10 delivery validation
-- `prepare-delivery:test-coverage-checker` - Phase 8 pre-review gate
-
 ## Commands
 
 - delivery-approval
