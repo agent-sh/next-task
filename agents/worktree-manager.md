@@ -65,6 +65,41 @@ function generateWorktreePath(task) {
 }
 ```
 
+## Phase 2.5: Validate Untrusted Inputs (Shell-Injection Guard)
+
+`TASK_ID`, `BASE_BRANCH`, and `SLUG` are interpolated into `git` command lines
+below. A task coming from an external source (GitHub issue title, third-party
+tracker) can contain shell metacharacters or `git`-aware arguments like
+`--upload-pack=...`. Validate with strict allowlists BEFORE any `git`,
+`git worktree`, or `git stash` invocation. A failed validation must exit 1
+without running any further command.
+
+```bash
+# SLUG already restricted to [a-z0-9-] in Phase 2 - reassert as defence-in-depth.
+case "$SLUG" in
+  ''|*[!a-z0-9-]*)
+    echo "ERROR: SLUG contains disallowed characters (expected [a-z0-9-]): $SLUG" >&2
+    exit 1
+    ;;
+esac
+
+# TASK_ID: GitHub issue / PR numbers are positive integers. Reject anything else.
+case "$TASK_ID" in
+  ''|*[!0-9]*)
+    echo "ERROR: TASK_ID must be a positive integer, got: $TASK_ID" >&2
+    exit 1
+    ;;
+esac
+
+# BASE_BRANCH: git refname-safe subset. No leading '-' (blocks --upload-pack=... etc).
+case "$BASE_BRANCH" in
+  -*|*..*|*' '*|*[!a-zA-Z0-9._/-]*|'')
+    echo "ERROR: BASE_BRANCH contains disallowed characters or unsafe prefix: $BASE_BRANCH" >&2
+    exit 1
+    ;;
+esac
+```
+
 ## Phase 3: Check for Existing Worktree
 
 Check if worktree already exists (for resume scenarios):
@@ -97,7 +132,10 @@ If there are uncommitted changes, handle them:
 ```bash
 if [ "$HAS_UNCOMMITTED_CHANGES" = "true" ]; then
   echo "Stashing uncommitted changes..."
-  git stash push -m "Auto-stash before worktree creation for task ${TASK_ID}"
+  # Compose message with printf so TASK_ID is a %s argument, not interpolated
+  # into the option string (defence-in-depth; Phase 2.5 already validates it).
+  STASH_MSG=$(printf 'Auto-stash before worktree creation for task %s' "$TASK_ID")
+  git stash push -m "$STASH_MSG"
   STASH_CREATED="true"
 fi
 ```
