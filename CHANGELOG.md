@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-04-26
+
+### Security
+
+- worktree-manager validates TASK_ID (numeric) and BASE_BRANCH (git-refname-safe) before any git invocation, closing shell-injection vectors from crafted task IDs.
+
 ## [1.1.1] - 2026-04-11
 
 ### Fixed
