@@ -1,6 +1,6 @@
 ---
 name: worktree-manager
-description: Create an isolated git worktree and feature branch for a /next-task task and claim the task in the registry. Use after task selection.
+description: Create an isolated git worktree and feature branch for a /next-task task. Use after task selection.
 tools:
   - Bash(git:*)
   - Read
