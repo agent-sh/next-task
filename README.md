@@ -29,7 +29,7 @@ Requires [agentsys](https://github.com/agent-sh/agentsys) runtime.
 /next-task --status                     # Show current workflow state
 /next-task --abort                      # Cancel and clean up
 /next-task bug                          # Filter to bug-labeled issues only
-/next-task --base develop               # Target a non-default branch
+/next-task --base=develop               # Target a non-default branch
 ```
 
 ## How It Works
@@ -42,14 +42,14 @@ The workflow has 12 phases. Phases 1-6 involve the user; phases 7-12 run autonom
 | 2 | Task Discovery | task-discoverer | Sonnet |
 | 3 | Worktree Setup | worktree-manager | Haiku |
 | 4 | Exploration | exploration-agent | Sonnet |
-| 5 | Planning | planning-agent | Opus |
+| 5 | Planning | planning-agent | Inherits session model |
 | 6 | User Approval | - | - |
-| 7 | Implementation | implementation-agent | Opus |
+| 7 | Implementation | implementation-agent | Inherits session model |
 | 8 | Pre-Review Gates | deslop:deslop-agent + prepare-delivery:test-coverage-checker | Sonnet |
-| 9 | Review Loop | 4+ parallel reviewers | Sonnet |
+| 9 | Review Loop | 1 reviewer, up to 4 for large diffs | Sonnet |
 | 10 | Delivery Validation | prepare-delivery:delivery-validator | Sonnet |
 | 11 | Docs Update | sync-docs:sync-docs-agent | Sonnet |
-| 12 | Ship | ship:ship | - |
+| 12 | Stopping point | ship:ship, or stop at implemented / PR created | - |
 
 **Human interaction happens exactly three times:** source/priority selection (Phase 1), task selection (Phase 2), and plan approval (Phase 6). Everything after Phase 6 is autonomous.
 
@@ -59,9 +59,13 @@ The workflow has 12 phases. Phases 1-6 involve the user; phases 7-12 run autonom
 
 **Worktree isolation** (Phase 3) creates a git worktree per task so multiple workflows can run in parallel without conflicts.
 
-**Multi-agent review** (Phase 9) spawns 4 core reviewers in parallel - code quality, security, performance, and test coverage - plus conditional specialists (database, API, frontend, backend, devops, architecture) based on which files changed. Runs up to 5 iterations with stall detection.
+**Review loop** (Phase 9) sizes the review to the change: one reviewer covering correctness, security, performance, and tests by default, up to 4 parallel reviewers (one per concern, optionally a database, API, frontend, or infra specialist) for large or risky diffs. Critical and high findings are fixed; the loop stops when none remain, on a stall, or after 3 rounds.
 
 **Pre-review gates** (Phase 8) run deslop (AI slop cleanup) and test coverage checks in parallel before the review loop starts.
+
+**Stopping point** (Phase 12) follows the policy answer: stop after implementation, open the PR and stop, or hand off to `/ship` to merge and deploy.
+
+**Works without the companion plugins.** Every cross-plugin step (deslop, prepare-delivery, sync-docs, ship) has an inline fallback, and missing `Task`, `AskUserQuestion`, or plan mode fall back to inline work and plain-text questions.
 
 ## Task Sources
 
@@ -102,10 +106,10 @@ Phases 8-10 use agents from the [prepare-delivery](https://github.com/agent-sh/p
 
 | Plugin | Used in |
 |--------|---------|
-| [deslop](https://github.com/agent-sh/deslop) | Phase 8 - AI slop cleanup |
-| [prepare-delivery](https://github.com/agent-sh/prepare-delivery) | Phases 8-10 - test coverage, review orchestration, delivery validation |
-| [sync-docs](https://github.com/agent-sh/sync-docs) | Phase 11 - documentation sync |
-| [ship](https://github.com/agent-sh/ship) | Phase 12 - PR creation, CI, merge |
+| [deslop](https://github.com/agent-sh/deslop) | Phase 8 - AI slop cleanup (optional, inline fallback) |
+| [prepare-delivery](https://github.com/agent-sh/prepare-delivery) | Phases 8 and 10 - test coverage, delivery validation (optional, falls back to /delivery-approval) |
+| [sync-docs](https://github.com/agent-sh/sync-docs) | Phase 11 - documentation sync (optional, inline fallback) |
+| [ship](https://github.com/agent-sh/ship) | Phase 12 - PR creation, CI, merge (optional, falls back to opening the PR) |
 
 ## Related Plugins
 

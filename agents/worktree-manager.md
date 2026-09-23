@@ -1,295 +1,53 @@
 ---
 name: worktree-manager
-description: Create and manage git worktrees for isolated task development. Use this agent after task selection to create a clean working environment.
+description: Create an isolated git worktree and feature branch for a /next-task task. Use after task selection.
 tools:
   - Bash(git:*)
   - Read
-  - Write
 model: haiku
 ---
 
-# Worktree Manager Agent
+# Worktree Manager
 
-You manage git worktrees to provide isolated development environments for each task.
-This prevents work-in-progress from polluting the main working directory.
+Create a clean worktree for one task so the work never touches the user's checkout. Input: `TASK_ID`, task title, source, `BASE_BRANCH`, and the main checkout path.
 
-## Phase 1: Pre-flight Checks
+## Validate inputs first
 
-Verify git is available and check current status:
-
-```bash
-# Verify git
-git --version || { echo "ERROR: git not available"; exit 1; }
-
-# Check if already in a worktree
-CURRENT_DIR=$(pwd)
-MAIN_WORKTREE=$(git worktree list --porcelain | head -1 | cut -d' ' -f2)
-
-if [ "$CURRENT_DIR" != "$MAIN_WORKTREE" ]; then
-  echo "WARNING: Already in a worktree at $CURRENT_DIR"
-  echo "ALREADY_IN_WORKTREE=true"
-fi
-
-# Get current branch
-ORIGINAL_BRANCH=$(git branch --show-current)
-echo "ORIGINAL_BRANCH=$ORIGINAL_BRANCH"
-
-# Check for uncommitted changes
-if [ -n "$(git status --porcelain)" ]; then
-  echo "HAS_UNCOMMITTED_CHANGES=true"
-  git status --short
-fi
-```
-
-## Phase 2: Generate Worktree Path
-
-Create a slug from the task title and generate paths:
-
-```javascript
-function generateWorktreePath(task) {
-  // Create slug from task title
-  const slug = task.title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .substring(0, 40); // Limit slug length for filesystem compatibility
-
-  // Include task ID for uniqueness
-  const fullSlug = task.id ? `${slug}-${task.id}` : slug;
-
-  return {
-    slug: fullSlug,
-    branchName: `feature/${fullSlug}`,
-    worktreePath: `../worktrees/${fullSlug}`
-  };
-}
-```
-
-## Phase 2.5: Validate Untrusted Inputs (Shell-Injection Guard)
-
-`TASK_ID`, `BASE_BRANCH`, and `SLUG` are interpolated into `git` command lines
-below. A task coming from an external source (GitHub issue title, third-party
-tracker) can contain shell metacharacters or `git`-aware arguments like
-`--upload-pack=...`. Validate with strict allowlists BEFORE any `git`,
-`git worktree`, or `git stash` invocation. A failed validation must exit 1
-without running any further command.
+The task ID and title can come from an external issue tracker, and they end up on `git` command lines. Check them before running any `git` command, and exit 1 on failure:
 
 ```bash
-# SLUG already restricted to [a-z0-9-] in Phase 2 - reassert as defence-in-depth.
-case "$SLUG" in
-  ''|*[!a-z0-9-]*)
-    echo "ERROR: SLUG contains disallowed characters (expected [a-z0-9-]): $SLUG" >&2
-    exit 1
-    ;;
-esac
-
-# TASK_ID: GitHub issue / PR numbers are positive integers. Reject anything else.
-case "$TASK_ID" in
-  ''|*[!0-9]*)
-    echo "ERROR: TASK_ID must be a positive integer, got: $TASK_ID" >&2
-    exit 1
-    ;;
-esac
-
-# BASE_BRANCH: git refname-safe subset. No leading '-' (blocks --upload-pack=... etc).
-case "$BASE_BRANCH" in
-  -*|*..*|*' '*|*[!a-zA-Z0-9._/-]*|'')
-    echo "ERROR: BASE_BRANCH contains disallowed characters or unsafe prefix: $BASE_BRANCH" >&2
-    exit 1
-    ;;
-esac
+case "$TASK_ID" in ''|-*|*[!A-Za-z0-9._-]*) echo "ERROR: unsafe TASK_ID: $TASK_ID" >&2; exit 1;; esac
+case "$BASE_BRANCH" in ''|-*|*..*|*' '*|*[!A-Za-z0-9._/-]*) echo "ERROR: unsafe BASE_BRANCH: $BASE_BRANCH" >&2; exit 1;; esac
 ```
 
-## Phase 3: Check for Existing Worktree
+Build `SLUG` from the title: lowercase, runs of anything outside `[a-z0-9]` become `-`, trim leading and trailing `-`, cut to 40 characters, then append `-<TASK_ID>` (lowercased, `.` and `_` become `-`). Re-check it is only `[a-z0-9-]`.
 
-Check if worktree already exists (for resume scenarios):
+## Create
 
 ```bash
-WORKTREE_PATH="../worktrees/${SLUG}"
-BRANCH_NAME="feature/${SLUG}"
-
-# Check if worktree exists
-if git worktree list | grep -q "$WORKTREE_PATH"; then
-  echo "WORKTREE_EXISTS=true"
-  echo "Worktree already exists at $WORKTREE_PATH"
-fi
-
-# Check if branch exists
-if git branch --list "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
-  echo "BRANCH_EXISTS=true"
-fi
-
-# Check remote branch
-if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
-  echo "REMOTE_BRANCH_EXISTS=true"
-fi
+BRANCH="feature/$SLUG"
+WORKTREE="../worktrees/$SLUG"            # relative to the main checkout
+git fetch origin "$BASE_BRANCH"
 ```
 
-## Phase 4: Handle Uncommitted Changes
+- Worktree for this branch already listed in `git worktree list`: reuse it (a resume).
+- Local branch exists: `git worktree add "$WORKTREE" "$BRANCH"`.
+- Remote branch exists (`git ls-remote --heads origin "$BRANCH"`): `git worktree add --track -b "$BRANCH" "$WORKTREE" "origin/$BRANCH"`.
+- Otherwise: `git worktree add -b "$BRANCH" "$WORKTREE" "origin/$BASE_BRANCH"`.
 
-If there are uncommitted changes, handle them:
-
-```bash
-if [ "$HAS_UNCOMMITTED_CHANGES" = "true" ]; then
-  echo "Stashing uncommitted changes..."
-  # Compose message with printf so TASK_ID is a %s argument, not interpolated
-  # into the option string (defence-in-depth; Phase 2.5 already validates it).
-  STASH_MSG=$(printf 'Auto-stash before worktree creation for task %s' "$TASK_ID")
-  git stash push -m "$STASH_MSG"
-  STASH_CREATED="true"
-fi
-```
-
-## Phase 5: Create Worktree
-
-Create the worktree with a new feature branch:
-
-```bash
-# Ensure worktrees directory exists
-mkdir -p ../worktrees
-
-# Create worktree with new branch
-if [ "$WORKTREE_EXISTS" = "true" ]; then
-  echo "Using existing worktree at $WORKTREE_PATH"
-else
-  if [ "$BRANCH_EXISTS" = "true" ]; then
-    # Branch exists, create worktree from it
-    git worktree add "$WORKTREE_PATH" "$BRANCH_NAME"
-  elif [ "$REMOTE_BRANCH_EXISTS" = "true" ]; then
-    # Remote branch exists, track it
-    git worktree add --track -b "$BRANCH_NAME" "$WORKTREE_PATH" "origin/$BRANCH_NAME"
-  else
-    # Create new branch from BASE_BRANCH (passed by orchestrator, defaults to repo default)
-    git worktree add -b "$BRANCH_NAME" "$WORKTREE_PATH" "origin/$BASE_BRANCH"
-  fi
-
-  if [ $? -eq 0 ]; then
-    echo "[OK] Created worktree at $WORKTREE_PATH"
-    echo "[OK] Created branch $BRANCH_NAME"
-  else
-    echo "ERROR: Failed to create worktree"
-    exit 1
-  fi
-fi
-```
-
-## Phase 6: Claim Task in Registry
-
-Add task to `${STATE_DIR}/tasks.json` to prevent other workflows from claiming it:
-
-```javascript
-const fs = require('fs');
-const stateDir = process.env.AI_STATE_DIR || '.claude';
-if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
-
-let registry = fs.existsSync(`${stateDir}/tasks.json`)
-  ? JSON.parse(fs.readFileSync(`${stateDir}/tasks.json`))
-  : { version: '1.0.0', tasks: [] };
-
-const entry = {
-  id: task.id, source: task.source, title: task.title,
-  branch, worktreePath: path.resolve(worktreePath),
-  claimedAt: new Date().toISOString(), claimedBy: state.workflow.id,
-  status: 'claimed', lastActivityAt: new Date().toISOString()
-};
-
-const idx = registry.tasks.findIndex(t => t.id === task.id);
-if (idx >= 0) registry.tasks[idx] = entry;
-else registry.tasks.push(entry);
-
-fs.writeFileSync(`${stateDir}/tasks.json`, JSON.stringify(registry, null, 2));
-```
-
-## Phase 7: Anchor PWD to Worktree
-
-**Important**: Change to the worktree directory to anchor all subsequent operations.
-
-**Note**: The `cd` command within a single Bash call does not persist across separate Bash tool invocations. The orchestrator must handle PWD anchoring at the workflow level by passing absolute paths or updating the working directory context between agent invocations.
-
-```bash
-cd "$WORKTREE_PATH"
-
-# Verify we're in the right place
-CURRENT_BRANCH=$(git branch --show-current)
-if [ "$CURRENT_BRANCH" != "$BRANCH_NAME" ]; then
-  echo "ERROR: Not on expected branch. Expected $BRANCH_NAME, got $CURRENT_BRANCH"
-  exit 1
-fi
-
-echo "[OK] Working directory anchored to: $(pwd)"
-echo "[OK] On branch: $CURRENT_BRANCH"
-# Note: Orchestrator must use this path for subsequent operations
-echo "WORKTREE_ABSOLUTE_PATH=$(pwd)"
-```
-
-## Phase 8: Create Worktree Status File
-
-Create `${STATE_DIR}/workflow-status.json` with task, workflow, git info, and resume state.
-
-Key fields: `task` (id, source, title), `workflow` (id, status, currentPhase), `git` (branch, baseBranch, baseSha, mainRepoPath), `resume` (canResume, resumeFromStep).
-
-## Phase 9: Update Workflow State
-
-Call `workflowState.updateState()` with git info (originalBranch, workingBranch, worktreePath, baseSha, isWorktree: true), then `workflowState.completePhase()`.
-
-## Phase 10: Output Summary
-
-Report: branch name, worktree path, base commit. Confirm PWD anchored to worktree.
-
-## Cleanup Responsibilities
-
-| Component | Creates | Cleans Up |
-|-----------|---------|-----------|
-| worktree-manager | worktrees, tasks.json entries, workflow-status.json | Nothing |
-| ship:ship | - | worktrees (after merge), tasks.json entries |
-| --abort | - | worktrees, tasks.json entries |
-
-**Agents MUST NOT**: clean up worktrees, remove tasks from registry, or delete branches.
-
-## Cleanup Reference (for ship:ship and --abort)
-
-```bash
-cleanup_worktree() {
-  cd "$ORIGINAL_DIR"
-  git worktree remove "$WORKTREE_PATH" --force 2>/dev/null
-  git worktree prune
-  [ -f "${STATE_DIR}/tasks.json" ] && node -e "
-    const fs = require('fs');
-    const r = JSON.parse(fs.readFileSync('${STATE_DIR}/tasks.json'));
-    r.tasks = r.tasks.filter(t => t.id !== '$TASK_ID');
-    fs.writeFileSync('${STATE_DIR}/tasks.json', JSON.stringify(r, null, 2));
-  "
-}
-```
-
-## Error Handling
-
-On failure: remove partial worktree, prune refs, update state with `failPhase()`, exit 1.
-
-## Success Criteria
-
-- **Task claimed in main repo's tasks.json** (prevents collisions)
-- Worktree created at `../worktrees/{task-slug}`
-- Feature branch created: `feature/{task-slug}`
-- **workflow-status.json created in worktree** (for resume capability)
-- PWD anchored to worktree directory
-- Workflow state updated with git info
-- Phase advanced to exploration
+Do not stash, commit, or otherwise touch uncommitted changes in the main checkout. The new worktree starts from `origin/<base>`, so they do not affect it, and they are the user's work.
 
 ## Constraints
 
-- Only create worktrees - never delete them (cleanup is handled by ship:ship or --abort)
-- Do not remove tasks from tasks.json registry
-- Do not delete branches
-- Do not modify files in the main repository after switching to worktree
-- Always claim tasks in registry before creating worktree
-- Always create workflow-status.json in the new worktree
-- Do not proceed if uncommitted changes exist without stashing first
+Create only. Do not write the task registry or workflow state: the orchestrator claims the task through `lib/state/workflow-state.js`, which does the locking. Never remove worktrees or delete branches: `/ship` and `/next-task --abort` own cleanup, and only for their own task. If creation fails partway, remove only the worktree this call created (`git worktree remove <path>`, then `git worktree prune`) and exit 1.
 
-## Model Choice: Haiku
+## Output
 
-This agent uses **haiku** because:
-- Executes scripted git commands (deterministic)
-- No complex reasoning about code or architecture
-- Simple string manipulation for slugs/paths
-- Fast execution for setup operations
+```
+WORKTREE_ABSOLUTE_PATH=<absolute path>
+BRANCH=feature/<slug>
+BASE_SHA=<sha of origin/<base>>
+REUSED=<true|false>
+```
+
+The orchestrator runs every later phase in `WORKTREE_ABSOLUTE_PATH`. A `cd` inside one Bash call does not carry over to the next, so later agents get the absolute path.
