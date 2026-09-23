@@ -6,340 +6,65 @@ allowed-tools: Bash(git:*), Bash(npm:*), Read, Grep, Glob
 model: sonnet
 ---
 
-# /delivery-approval - Delivery Validation
+# /delivery-approval
 
-Validate that the current work is complete and ready to ship.
-This command runs the same validation as the `prepare-delivery:delivery-validator` agent.
+Decide whether the current branch is ready to ship: committed, green, and doing what the task asked. This runs the same checks as `prepare-delivery:delivery-validator` and is the fallback `/next-task` uses when that plugin is not installed.
 
 ## Arguments
 
-- `--task-id ID`: Specify task ID to validate against (default: from workflow state)
-- `--verbose`: Show detailed output for each check
+From `$ARGUMENTS`:
 
-## Parse Arguments
+- `--task-id ID`: the task to check requirements against. Default: the task in the workflow state (`readFlow()` in `${CLAUDE_PLUGIN_ROOT}/lib/state/workflow-state.js`), then an issue referenced in recent commit messages, then none.
+- `--verbose`: include the relevant output of each check, not just pass or fail.
 
-```javascript
-const args = $ARGUMENTS.split(' ').filter(Boolean);
-const verbose = args.includes('--verbose');
-const taskIdArg = args.find(a => a.startsWith('--task-id'));
-const taskId = taskIdArg ? args[args.indexOf(taskIdArg) + 1] : null;
-```
+The base branch is `git.baseBranch` from the workflow state, else the repo default.
 
-## Phase 1: Get Context
+## Checks
 
-```javascript
-const { getPluginRoot } = require('./lib/cross-platform');
-const path = require('path');
+| Check | Passes when |
+|---|---|
+| Git state | No uncommitted changes, and at least one commit ahead of `origin/<base>` |
+| Tests | The project's test command exits 0 (`npm test`, `pytest`, `cargo test`, `go test ./...`, or whatever the repo documents) |
+| Build | The build command exits 0, or the project has none |
+| Lint | The lint command exits 0, or the project has none |
+| Types | `tsc --noEmit` exits 0 when there is a `tsconfig.json`, or the project has no type check |
+| Requirements | Each concrete requirement in the task description has evidence in the diff (`git diff origin/<base>...HEAD`) or a test. No task: skipped, and the report says so |
 
-const pluginRoot = getPluginRoot('next-task');
-if (!pluginRoot) {
-  console.error('Error: Could not locate next-task plugin installation');
-  process.exit(1);
-}
+Detect commands from the repo (package scripts, Makefile, CI workflow) rather than guessing. A check with no command is `n/a`, not a pass or a fail. Requirements is a judgment: quote the requirement and point at the file and line that meets it.
 
-const workflowState = require(path.join(pluginRoot, 'lib/state/workflow-state.js'));
-
-let task;
-let changedFiles;
-
-// Try to get from workflow state first
-const state = workflowState.readState();
-if (state?.task) {
-  task = state.task;
-} else if (taskId) {
-  // Fetch task from GitHub
-  task = await fetchGitHubIssue(taskId);
-} else {
-  // Get from recent commit message
-  task = await inferTaskFromCommits();
-}
-
-// Get base branch from flow state, fallback to repo default
-const baseBranch = state?.git?.baseBranch || 'main';
-
-// Get changed files
-changedFiles = (await run('git', ['diff', '--name-only', `origin/${baseBranch}..HEAD`])).split('\n').filter(Boolean);
-```
-
-## Phase 2: Run Validation Checks
-
-### Check 1: Git State
-
-```bash
-# Check for uncommitted changes
-UNCOMMITTED=$(git status --porcelain)
-if [ -n "$UNCOMMITTED" ]; then
-  echo "UNCOMMITTED_CHANGES=true"
-  echo "$UNCOMMITTED"
-fi
-
-# Check if ahead of remote
-BASE_BRANCH="${baseBranch:-main}"
-AHEAD=$(git rev-list --count origin/$BASE_BRANCH..HEAD)
-echo "COMMITS_AHEAD=$AHEAD"
-
-# Check branch name
-BRANCH=$(git branch --show-current)
-echo "BRANCH=$BRANCH"
-```
-
-### Check 2: Tests Pass
-
-```bash
-# Detect and run tests
-if [ -f "package.json" ]; then
-  if grep -q '"test"' package.json; then
-    echo "Running npm test..."
-    npm test 2>&1
-    TEST_RESULT=$?
-    echo "TEST_RESULT=$TEST_RESULT"
-  else
-    echo "NO_TEST_SCRIPT=true"
-  fi
-elif [ -f "pytest.ini" ] || [ -f "pyproject.toml" ]; then
-  echo "Running pytest..."
-  pytest -v 2>&1
-  TEST_RESULT=$?
-  echo "TEST_RESULT=$TEST_RESULT"
-elif [ -f "Cargo.toml" ]; then
-  echo "Running cargo test..."
-  cargo test 2>&1
-  TEST_RESULT=$?
-  echo "TEST_RESULT=$TEST_RESULT"
-elif [ -f "go.mod" ]; then
-  echo "Running go test..."
-  go test ./... -v 2>&1
-  TEST_RESULT=$?
-  echo "TEST_RESULT=$TEST_RESULT"
-fi
-```
-
-### Check 3: Build Passes
-
-```bash
-# Detect and run build
-if [ -f "package.json" ] && grep -q '"build"' package.json; then
-  echo "Running npm run build..."
-  npm run build 2>&1
-  BUILD_RESULT=$?
-  echo "BUILD_RESULT=$BUILD_RESULT"
-elif [ -f "Cargo.toml" ]; then
-  echo "Running cargo build..."
-  cargo build --release 2>&1
-  BUILD_RESULT=$?
-  echo "BUILD_RESULT=$BUILD_RESULT"
-elif [ -f "go.mod" ]; then
-  echo "Running go build..."
-  go build ./... 2>&1
-  BUILD_RESULT=$?
-  echo "BUILD_RESULT=$BUILD_RESULT"
-else
-  echo "NO_BUILD_SCRIPT=true"
-  BUILD_RESULT=0
-fi
-```
-
-### Check 4: Lint Passes
-
-```bash
-# Run linter if available
-if [ -f "package.json" ] && grep -q '"lint"' package.json; then
-  echo "Running npm run lint..."
-  npm run lint 2>&1
-  LINT_RESULT=$?
-  echo "LINT_RESULT=$LINT_RESULT"
-elif [ -f ".eslintrc.js" ] || [ -f ".eslintrc.json" ]; then
-  echo "Running eslint..."
-  npx eslint . 2>&1
-  LINT_RESULT=$?
-  echo "LINT_RESULT=$LINT_RESULT"
-else
-  echo "NO_LINTER=true"
-  LINT_RESULT=0
-fi
-```
-
-### Check 5: Type Check (TypeScript)
-
-```bash
-if [ -f "tsconfig.json" ]; then
-  echo "Running tsc --noEmit..."
-  npx tsc --noEmit 2>&1
-  TYPE_RESULT=$?
-  echo "TYPE_RESULT=$TYPE_RESULT"
-else
-  echo "NO_TYPESCRIPT=true"
-  TYPE_RESULT=0
-fi
-```
-
-## Phase 3: Check Task Requirements
-
-```javascript
-async function checkRequirements(task, changedFiles) {
-  if (!task) {
-    return { passed: true, reason: 'No task specified, skipping requirements check' };
-  }
-
-  const requirements = extractRequirements(task.description || task.body || '');
-
-  if (requirements.length === 0) {
-    return { passed: true, reason: 'No specific requirements found in task' };
-  }
-
-  // Analyze changed files for each requirement
-  const results = [];
-  for (const req of requirements) {
-    const evidence = await findEvidence(req, changedFiles);
-    results.push({
-      requirement: req,
-      implemented: evidence.found,
-      evidence: evidence.details
-    });
-  }
-
-  const allMet = results.every(r => r.implemented);
-  return {
-    passed: allMet,
-    results,
-    reason: allMet ? 'All requirements met' : 'Some requirements not implemented'
-  };
-}
-```
-
-## Phase 4: Aggregate Results
-
-```javascript
-const checks = {
-  gitState: {
-    passed: !UNCOMMITTED_CHANGES,
-    uncommitted: UNCOMMITTED_CHANGES,
-    commitsAhead: COMMITS_AHEAD,
-    branch: BRANCH
-  },
-  tests: {
-    passed: TEST_RESULT === 0,
-    exitCode: TEST_RESULT
-  },
-  build: {
-    passed: BUILD_RESULT === 0,
-    exitCode: BUILD_RESULT
-  },
-  lint: {
-    passed: LINT_RESULT === 0,
-    exitCode: LINT_RESULT
-  },
-  typeCheck: {
-    passed: TYPE_RESULT === 0,
-    exitCode: TYPE_RESULT
-  },
-  requirements: await checkRequirements(task, changedFiles)
-};
-
-const allPassed = Object.values(checks).every(c => c.passed);
-const failedChecks = Object.entries(checks)
-  .filter(([_, v]) => !v.passed)
-  .map(([k, _]) => k);
-```
-
-## Phase 5: Output Results
-
-### Summary Report
+## Output
 
 ```markdown
-## Delivery Validation Report
+## Delivery Validation
 
-**Task**: ${task?.title || 'N/A'}
-**Branch**: ${BRANCH}
-**Commits ahead of ${BASE_BRANCH}**: ${COMMITS_AHEAD}
-
-### Validation Results
+Task: <title or N/A> | Branch: <branch> | Ahead of <base>: <n> commits
 
 | Check | Status | Details |
-|-------|--------|---------|
-| Git State | ${checks.gitState.passed ? '[OK]' : '[FAIL]'} | ${checks.gitState.uncommitted ? 'Uncommitted changes' : 'Clean'} |
-| Tests | ${checks.tests.passed ? '[OK]' : '[FAIL]'} | Exit code: ${checks.tests.exitCode} |
-| Build | ${checks.build.passed ? '[OK]' : '[FAIL]'} | Exit code: ${checks.build.exitCode} |
-| Lint | ${checks.lint.passed ? '[OK]' : '[FAIL]'} | Exit code: ${checks.lint.exitCode} |
-| Type Check | ${checks.typeCheck.passed ? '[OK]' : '[FAIL]'} | Exit code: ${checks.typeCheck.exitCode} |
-| Requirements | ${checks.requirements.passed ? '[OK]' : '[FAIL]'} | ${checks.requirements.reason} |
+|---|---|---|
+| Git state | [OK] or [FAIL] | ... |
+| Tests | [OK], [FAIL] or n/a | exit code, failing tests |
+| Build | ... | ... |
+| Lint | ... | ... |
+| Types | ... | ... |
+| Requirements | ... | met / missing, with evidence |
 
-### Overall Status
+[OK] APPROVED  or  [FAIL] NOT APPROVED: <failed checks>
 
-${allPassed ?
-  '## [OK] APPROVED\nAll validation checks passed. Ready to ship!' :
-  `## [FAIL] NOT APPROVED\nFailed checks: ${failedChecks.join(', ')}`}
-
-${!allPassed ? `
-### Fix Required
-
-${failedChecks.map(check => {
-  switch(check) {
-    case 'gitState': return '- Commit or stash uncommitted changes';
-    case 'tests': return '- Fix failing tests';
-    case 'build': return '- Fix build errors';
-    case 'lint': return '- Fix linting errors';
-    case 'typeCheck': return '- Fix TypeScript errors';
-    case 'requirements': return '- Implement missing requirements';
-  }
-}).join('\n')}
-` : ''}
+### Fix required
+- <one line per failed check>
 ```
 
-### JSON Output (for scripting)
+Then the machine-readable result, which `/next-task` reads:
 
 ```json
 {
-  "approved": ${allPassed},
-  "task": {
-    "id": "${task?.id || 'N/A'}",
-    "title": "${task?.title || 'N/A'}"
-  },
-  "checks": {
-    "gitState": ${JSON.stringify(checks.gitState)},
-    "tests": ${JSON.stringify(checks.tests)},
-    "build": ${JSON.stringify(checks.build)},
-    "lint": ${JSON.stringify(checks.lint)},
-    "typeCheck": ${JSON.stringify(checks.typeCheck)},
-    "requirements": ${JSON.stringify(checks.requirements)}
-  },
-  "failedChecks": ${JSON.stringify(failedChecks)},
-  "summary": "${allPassed ? 'All checks passed' : `Failed: ${failedChecks.join(', ')}`}"
+  "approved": true,
+  "task": { "id": "142", "title": "..." },
+  "checks": { "gitState": {}, "tests": {}, "build": {}, "lint": {}, "typeCheck": {}, "requirements": {} },
+  "failedChecks": [],
+  "fixInstructions": [],
+  "summary": "All checks passed"
 }
 ```
 
-## Examples
-
-```bash
-# Basic validation
-/delivery-approval
-
-# With verbose output
-/delivery-approval --verbose
-
-# For specific task
-/delivery-approval --task-id 142
-
-# Combined
-/delivery-approval --task-id 142 --verbose
-```
-
-## Integration with Workflow
-
-When called from the next-task workflow:
-1. Task context is read from workflow state
-2. Results are written back to workflow state
-3. Workflow continues to ship phase if approved
-
-When called standalone:
-1. Attempts to infer task from commits
-2. Runs all validation checks
-3. Reports results but doesn't modify workflow state
-
-## Success Criteria
-
-- Runs all validation checks (tests, build, lint, types)
-- Checks task requirements if available
-- Provides clear pass/fail determination
-- Shows actionable fixes for failures
-- Works both standalone and in workflow context
+Each entry in `checks` has `passed` (true, false, or null for n/a) and the details you reported. Standalone runs report only. They do not change workflow state.

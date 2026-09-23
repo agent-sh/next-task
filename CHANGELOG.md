@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-24
+
+### Changed
+
+- Rewrote the command, agent, skill and hook prompts for current models: goal, constraints with reasons, definition of done, and output contract instead of step-by-step pseudocode, all-caps rule lists, and forced tool order. Prompt size went from 16,569 to 6,281 words. Repo-intel query recipes moved to `references/repo-intel.md`.
+- The orchestrator is the only writer of workflow state, at phase boundaries. Agents return reports. Per-step state bookkeeping in the implementation agent is gone; `--status`, `--resume` and `--abort` work as before.
+- The implementation agent runs the tests that cover the change once the change is complete, instead of after every step and full suites repeatedly.
+- The review loop sizes itself to the diff: one reviewer by default, at most 4 in parallel for large or risky diffs, 3 rounds max. Critical and high findings are fixed; medium when small and clearly right.
+- Task selection moved to the orchestrator. The task discoverer returns ranked candidates, since a subagent cannot ask the user.
+- The stopping-point answer from policy selection is honored: stop after implementation, open the PR and stop, or hand off to `/ship`.
+- Issue comments (the plan summary) are posted only after the user approves the plan. The pre-approval "workflow started" and planning-agent comments are gone.
+- Planning and implementation agents inherit the session model instead of pinning opus. Mechanical agents keep sonnet or haiku.
+
+### Fixed
+
+- The worktree manager no longer stashes uncommitted changes in the user's checkout. The worktree starts from `origin/<base>`, so they never needed moving.
+- Task IDs from local task files use a `<file stem>-<line>` form that passes the worktree manager's input guard. The guard accepts `[A-Za-z0-9._-]` with no leading dash instead of digits only.
+- Cross-plugin agents (`deslop`, `prepare-delivery`, `sync-docs`, `ship`) and missing `Task`, `Skill`, `AskUserQuestion` or plan-mode tools each have a stated fallback, so no harness stalls.
+- The `ci-monitor` agent waits with `gh pr checks --watch` instead of sleep loops, and only delegates to `ci-fixer` when it is installed and `Task` is available.
+
 ## [1.1.2] - 2026-04-26
 
 ### Security

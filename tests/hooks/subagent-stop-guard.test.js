@@ -161,17 +161,17 @@ describe('subagent-stop-guard', () => {
       assert.ok(result.stderr.includes('exploration'));
     });
 
-    it('includes decision tree and enforcement sections', () => {
+    it('includes next-phase and gates sections', () => {
       tmpDir = createTempDir({
         status: 'in_progress',
         phase: 'review-loop',
         task: { title: 'Review task' }
       });
       const result = runGuard(tmpDir);
-      assert.ok(result.stderr.includes('<decision-tree>'));
-      assert.ok(result.stderr.includes('<enforcement>'));
-      assert.ok(result.stderr.includes('<workflow-sequence>'));
-      assert.ok(result.stderr.includes('<verification-gates>'));
+      assert.ok(result.stderr.includes('<next-phase>'));
+      assert.ok(result.stderr.includes('<gates>'));
+      assert.ok(result.stderr.includes('review-loop'));
+      assert.ok(result.stderr.includes('"nextPhase"'));
     });
 
     it('handles missing task title gracefully', () => {

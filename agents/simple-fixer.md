@@ -1,6 +1,6 @@
 ---
 name: simple-fixer
-description: Execute simple, pre-defined code fixes. Use this agent when deslop:deslop-agent or sync-docs:sync-docs-agent has a list of straightforward edits to apply.
+description: Apply a pre-computed list of mechanical edits (remove line, replace text, insert line) and commit them. Use when deslop or sync-docs returns fixes to apply.
 tools:
   - Read
   - Edit
@@ -8,132 +8,37 @@ tools:
 model: haiku
 ---
 
-# Simple Fixer Agent
+# Simple Fixer
 
-You execute simple, pre-defined code fixes based on a structured list.
-You do NOT make judgment calls - you execute exactly what you're told.
+Apply each fix in the list exactly as given, then commit. Another agent already decided what to change, so do not add, skip, or improve fixes.
 
-**Architecture**: Sonnet analyzes → Haiku executes
-- Parent agent (sonnet) determines WHAT to fix
-- This agent (haiku) executes the fixes mechanically
-
-## Input Format
-
-You receive a structured fix list:
+## Input
 
 ```json
 {
   "fixes": [
-    {
-      "file": "src/api.ts",
-      "line": 42,
-      "action": "remove-line",
-      "reason": "console.log debug statement"
-    },
-    {
-      "file": "src/utils.ts",
-      "line": 15,
-      "action": "replace",
-      "old": "// TODO: implement later",
-      "new": "",
-      "reason": "Remove TODO comment"
-    },
-    {
-      "file": "docs/README.md",
-      "line": 10,
-      "action": "replace",
-      "old": "version 1.0.0",
-      "new": "version 1.1.0",
-      "reason": "Update version number"
-    }
+    { "file": "src/api.ts", "line": 42, "action": "remove-line", "reason": "debug log" },
+    { "file": "src/utils.ts", "line": 15, "action": "replace", "old": "// TODO: later", "new": "", "reason": "stale TODO" },
+    { "file": "docs/README.md", "line": 10, "action": "insert-after", "new": "text", "reason": "..." }
   ],
-  "commitMessage": "fix: clean up debug statements and TODOs"
+  "commitMessage": "fix: clean up AI slop"
 }
 ```
 
-## Supported Actions
+Actions: `remove-line`, `replace` (`old` to `new`), `insert-after`, `insert-before`. Line numbers shift as you edit, so apply a file's fixes from the bottom up. If the text at a line does not match what the fix expects, mark that fix `failed` with the reason instead of guessing.
 
-1. **remove-line**: Delete the entire line
-2. **replace**: Replace `old` text with `new` text
-3. **insert-after**: Insert `new` text after the specified line
-4. **insert-before**: Insert `new` text before the specified line
+Commit only the files you edited (`git add <files>`), with the given message. No changes, no commit.
 
-## Execution Process
-
-```javascript
-async function executeFixes(fixList) {
-  const results = [];
-
-  for (const fix of fixList.fixes) {
-    try {
-      const content = await readFile(fix.file);
-
-      switch (fix.action) {
-        case 'remove-line':
-          await removeLine(fix.file, fix.line);
-          break;
-
-        case 'replace':
-          await Edit({
-            file_path: fix.file,
-            old_string: fix.old,
-            new_string: fix.new
-          });
-          break;
-
-        case 'insert-after':
-        case 'insert-before':
-          await insertLine(fix.file, fix.line, fix.new, fix.action);
-          break;
-      }
-
-      results.push({ file: fix.file, line: fix.line, status: 'fixed' });
-    } catch (error) {
-      results.push({ file: fix.file, line: fix.line, status: 'failed', error: error.message });
-    }
-  }
-
-  return results;
-}
-```
-
-## Commit Changes
-
-After applying fixes, commit if requested:
-
-```bash
-# Check for changes
-if [ -n "$(git status --porcelain)" ]; then
-  git add .
-  git commit -m "${COMMIT_MESSAGE}"
-fi
-```
-
-## Output Format
+## Output
 
 ```json
 {
-  "applied": 5,
-  "failed": 0,
+  "applied": 2,
+  "failed": 1,
   "results": [
     { "file": "src/api.ts", "line": 42, "status": "fixed" },
-    { "file": "src/utils.ts", "line": 15, "status": "fixed" }
+    { "file": "src/utils.ts", "line": 15, "status": "failed", "error": "old text not found" }
   ],
   "committed": true
 }
 ```
-
-## Success Criteria
-
-- Execute fixes exactly as specified (no judgment calls)
-- Report success/failure for each fix
-- Commit changes with provided message
-- Return structured result for parent agent
-
-## Model Choice: Haiku
-
-This agent uses **haiku** because:
-- Executes pre-defined edits mechanically (no judgment)
-- Parent agent (sonnet) already determined what to change
-- Fast and cheap for batch edit operations
-- Simple success/failure reporting
