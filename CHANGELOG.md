@@ -6,7 +6,7 @@
 
 ### Changed
 
-- Rewrote the command, agent, skill and hook prompts for current models: goal, constraints with reasons, definition of done, and output contract instead of step-by-step pseudocode, all-caps rule lists, and forced tool order. Prompt size went from 16,569 to 6,281 words. Repo-intel query recipes moved to `references/repo-intel.md`.
+- Rewrote the command, agent, skill and hook prompts for current models: goal, constraints with reasons, definition of done, and output contract instead of step-by-step pseudocode, all-caps rule lists, and forced tool order. Prompt size went from 16,569 to 6,312 words. Repo-intel query recipes moved to `references/repo-intel.md`.
 - The orchestrator is the only writer of workflow state, at phase boundaries. Agents return reports. Per-step state bookkeeping in the implementation agent is gone; `--status`, `--resume` and `--abort` work as before.
 - The implementation agent runs the tests that cover the change once the change is complete, instead of after every step and full suites repeatedly.
 - The review loop sizes itself to the diff: one reviewer by default, at most 4 in parallel for large or risky diffs, 3 rounds max. Critical and high findings are fixed; medium when small and clearly right.
