@@ -4,7 +4,6 @@ description: Create an isolated git worktree and feature branch for a /next-task
 tools:
   - Bash(git:*)
   - Read
-  - Write
 model: haiku
 ---
 
