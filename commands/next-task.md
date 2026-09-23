@@ -117,7 +117,7 @@ Spawn `sync-docs:sync-docs-agent` with `Mode: apply`, `Scope: before-pr`. It ret
 - `pr-created`: push the branch and open the PR (`gh pr create --base <base>`, body with what changed, why, how it was tested, and `Closes #<id>`). Report the URL and stop.
 - `merged`, `deployed`, `production`: invoke `ship:ship` with `--state-file "<worktree>/<stateDir>/flow.json" --base <base>`. `/ship` monitors CI and reviews, merges, deploys on multi-branch repos, closes the issue, and removes this task's worktree. Not installed: do the `pr-created` step and tell the user to merge.
 
-When `/ship` prints `{"ok": true, "nextPhase": "completed", "status": "shipped"}`, call `completeWorkflow(<worktree>)`.
+When `/ship` prints `{"ok": true, "nextPhase": "completed", "status": "shipped"}`, the workflow is done. `/ship` has already released the task and, after a merge, removed the worktree, so do not write flow state after it: writing to the removed path would recreate part of the worktree. If `/ship` left the worktree in place, call `completeWorkflow(<worktree>)`.
 
 ## Errors
 
