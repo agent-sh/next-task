@@ -66,7 +66,7 @@ Spawn `next-task:task-discoverer` with the policy. It returns up to 5 ranked can
 
 ### 3. Worktree
 
-Spawn `next-task:worktree-manager` with the task ID, title, and base branch. It validates the inputs, creates `../worktrees/<slug>` on `feature/<slug>` from `origin/<base>`, claims the task in the registry, and returns the absolute worktree path and branch. Then `createFlow(task, policy, <worktree>, <main checkout>)` and record `git.baseBranch`, `git.branch`, `git.worktreePath`, and `git.mainRepoPath`. Every later agent gets the absolute worktree path and works there.
+Spawn `next-task:worktree-manager` with the task ID, title, and base branch. It validates the inputs, creates `../worktrees/<slug>` on `feature/<slug>` from `origin/<base>`, and returns the absolute worktree path and branch. Then claim the task with `claimTask({ id, source, title, branch, worktreePath }, <main checkout>)`, which locks the registry so a parallel run cannot take the same task, and `createFlow(task, policy, <worktree>, <main checkout>)` and record `git.baseBranch`, `git.branch`, `git.worktreePath`, and `git.mainRepoPath`. Every later agent gets the absolute worktree path and works there.
 
 ### 4. Exploration
 

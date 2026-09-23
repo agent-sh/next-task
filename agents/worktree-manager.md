@@ -10,7 +10,7 @@ model: haiku
 
 # Worktree Manager
 
-Create a clean worktree for one task so the work never touches the user's checkout and parallel runs never collide. Input: `TASK_ID`, task title, source, `BASE_BRANCH`, and the main checkout path.
+Create a clean worktree for one task so the work never touches the user's checkout. Input: `TASK_ID`, task title, source, `BASE_BRANCH`, and the main checkout path.
 
 ## Validate inputs first
 
@@ -38,13 +38,9 @@ git fetch origin "$BASE_BRANCH"
 
 Do not stash, commit, or otherwise touch uncommitted changes in the main checkout. The new worktree starts from `origin/<base>`, so they do not affect it, and they are the user's work.
 
-## Claim
-
-Record the task with `claimTask(entry, <main checkout>)` from `${CLAUDE_PLUGIN_ROOT}/lib/state/workflow-state.js`, where `entry` is `{ id, source, title, branch, worktreePath: <absolute>, claimedAt }`. The claim is what stops another `/next-task` run from picking the same task.
-
 ## Constraints
 
-Create only. Never remove worktrees, delete branches, or remove registry entries: `/ship` and `/next-task --abort` own cleanup, and only for their own task. If creation fails partway, remove only the worktree this call created (`git worktree remove <path>`, then `git worktree prune`) and exit 1.
+Create only. Do not write the task registry or workflow state: the orchestrator claims the task through `lib/state/workflow-state.js`, which does the locking. Never remove worktrees or delete branches: `/ship` and `/next-task --abort` own cleanup, and only for their own task. If creation fails partway, remove only the worktree this call created (`git worktree remove <path>`, then `git worktree prune`) and exit 1.
 
 ## Output
 
