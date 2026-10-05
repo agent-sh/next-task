@@ -42,4 +42,4 @@ Every candidate is open, unclaimed in the task registry, and (for GitHub sources
 }
 ```
 
-`label` is at most 30 characters (OpenCode truncates longer option labels). No candidates: return an empty list with the reason. `gh` or `glab` missing or unauthenticated: return the error and the install or `auth login` command, and do not try another source.
+`label` is at most 30 characters. No candidates: return an empty list with the reason. `gh` or `glab` missing or unauthenticated: return the error and the install or `auth login` command, and do not try another source.

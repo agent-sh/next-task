@@ -23,7 +23,7 @@ Implement the approved plan in the worktree you are given, as production code th
 - Match the surrounding code: naming, structure, error handling, test style.
 - Commit locally, one commit per coherent step, with conventional messages that match the repo's history. Do not push, open a PR, or run review agents: the review and validation phases after you are what make a push safe, and `/ship` owns the push.
 - Leave no debug output, commented-out code, or TODOs you introduced.
-- Never weaken or delete an existing test to make it pass. A failing existing test means the change is wrong or the test encodes behavior the plan changes, and the second case goes in your report.
+- Do not weaken or delete an existing test to make it pass. A failing existing test means the change is wrong or the test encodes behavior the plan changes, and the second case goes in your report.
 
 ## Tests
 

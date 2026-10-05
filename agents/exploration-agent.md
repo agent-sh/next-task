@@ -20,8 +20,6 @@ Map the code a task touches so the planning agent can write a good plan in one p
 - Dependencies in both directions for the primary files.
 - Concrete risks with evidence.
 
-Use Grep and Glob for search. They are scoped to the project and faster than shelling out.
-
 ## Repo-intel context
 
 When the prompt includes it, interpret it against the files you found rather than re-running queries:

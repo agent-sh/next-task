@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Second pass over the prompts for current models: "Never" rules read as plain instructions with their reasons, and lines that restated a limit or told the agent which search tool to use are gone. The command, agent, skill and AGENTS.md files went from 5,864 to 5,805 words.
+- AGENTS.md drops the generic model table and the GPU validation text this CPU-only repo does not need, replaces the nonexistent `npm run validate` with the agnix lint command, and gains an Overview that says `lib/` is synced from agent-core.
+
 ## [1.2.0] - 2026-09-24
 
 ### Changed

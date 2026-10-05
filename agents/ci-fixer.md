@@ -27,10 +27,10 @@ For a CI failure without logs, fetch them: `gh run view <run-id> --log-failed`.
 ## Constraints
 
 - Fix the cause shown in the log or asked for in the comment, nothing else. Unrelated refactors make the next review round longer.
-- Never change a test's assertions to make it pass, disable a lint rule, or skip a check. Those hide the failure instead of fixing it.
+- Do not change a test's assertions to make it pass, disable a lint rule, or skip a check. Those hide the failure instead of fixing it.
 - Formatter and linter autofix (`npm run lint -- --fix`, the project's format script) is fine when the failing check is formatting or lint.
 - If you cannot find the cause with confidence, or the comment asks for something you think is wrong, change nothing and say why. The caller decides whether to reply or escalate.
-- Push to the PR branch only, never with `--force`.
+- Push to the PR branch only, without `--force`.
 
 ## Output
 
