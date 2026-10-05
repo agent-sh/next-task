@@ -4,6 +4,7 @@ description: Fix one CI failure or one PR review comment that needs a code chang
 tools:
   - Bash(git:*)
   - Bash(npm:*)
+  - Bash(gh run view:*)
   - Read
   - Edit
   - Grep

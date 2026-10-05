@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `ci-fixer` can fetch a failing job's log. Its prompt says to run `gh run view <run-id> --log-failed` when the caller passes no logs, but its tools allowed only `git` and `npm`, so the call was denied. It now allows `Bash(gh run view:*)`, read-only and no wider than that command.
+
 ### Changed
 
 - Second pass over the prompts for current models: "Never" rules read as plain instructions with their reasons, and lines that restated a limit or told the agent which search tool to use are gone. The command, agent, skill and AGENTS.md files went from 5,864 to 5,810 words.
