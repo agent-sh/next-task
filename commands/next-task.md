@@ -20,11 +20,11 @@ Parse from `$ARGUMENTS`:
 - `--implement`: after task selection and worktree setup, skip the exploration and planning agents and go to implementation with a short plan you write from the task. Show that plan and get approval first: approval is what authorizes the autonomous phases.
 - `--base=BRANCH`: branch to start from and target. Default: the repo default branch (`git symbolic-ref refs/remotes/origin/HEAD`).
 
-A bare `/next-task` never auto-resumes. If the registry has active tasks, ask whether to resume one or start fresh.
+A bare `/next-task` does not auto-resume: if the registry has active tasks, ask whether to resume one or start fresh.
 
 ## Constraints
 
-- Work happens in a worktree created by `next-task:worktree-manager`, never in the user's checkout. The user may have uncommitted work there, and parallel `/next-task` runs rely on one worktree per task.
+- Work happens in a worktree created by `next-task:worktree-manager`, not in the user's checkout. The user may have uncommitted work there, and parallel `/next-task` runs rely on one worktree per task.
 - Only `ship:ship` (or, for the "PR created" stopping point, the PR step below) pushes or opens a PR. Agents commit locally. This keeps every push behind the review and validation phases.
 - Clean up only this task's worktree, branch, and registry entry. Other worktrees belong to other runs or other agents.
 - Issue comments go out only for GitHub sources and only after the user approves the plan. That approval is the consent to comment on the issue for this run.
@@ -97,7 +97,7 @@ Run these in parallel where the harness allows:
 Review the diff against the base with the Phase 9 repo-intel context. Size the review to the change:
 
 - Default: one reviewer covering correctness, security, performance, and tests.
-- Large or risky diffs (roughly 500+ changed lines, 15+ files, or high diff-risk or security-sensitive paths): up to 4 parallel reviewers, one per concern, optionally swapping one for a specialist the diff calls for (database, API, frontend, infra). Never more than 4 at once.
+- Large or risky diffs (roughly 500+ changed lines, 15+ files, or high diff-risk or security-sensitive paths): up to 4 parallel reviewers, one per concern, optionally swapping one for a specialist the diff calls for (database, API, frontend, infra).
 
 Use `general-purpose` subagents on a fast tier (sonnet) if `Task` is available, otherwise review inline. Each reviewer returns a JSON array of `{file, line, severity: critical|high|medium|low, description, suggestion}`. Merge duplicates. Fix critical and high findings, and medium ones when the fix is small and clearly right. Commit the fixes, then re-review only what changed.
 
