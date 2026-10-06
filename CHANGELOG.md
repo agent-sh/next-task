@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-06
+
 ### Fixed
 
 - `ci-fixer` can fetch a failing job's log. Its prompt says to run `gh run view <run-id> --log-failed` when the caller passes no logs, but its tools allowed only `git` and `npm`, so the call was denied. It now allows `Bash(gh run view:*)`, read-only and no wider than that command.

@@ -1,7 +1,7 @@
 ---
 name: discover-tasks
 description: "Use when the user asks to discover tasks, find the next task, prioritize issues, or list open work. Discovers and ranks tasks from GitHub, GitHub Projects, GitLab, local task files, and custom sources."
-version: 5.2.0
+version: 5.3.0
 allowed-tools: "Bash(gh:*), Bash(glab:*), Bash(git:*), Bash(grep:*), Grep, Read, AskUserQuestion"
 ---
 
