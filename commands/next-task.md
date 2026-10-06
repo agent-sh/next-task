@@ -88,7 +88,11 @@ Spawn `next-task:implementation-agent` with the approved plan and the worktree p
 
 Run these in parallel where the harness allows:
 
-- `deslop:deslop-agent` with `Mode: apply`, `Scope: diff`, `Thoroughness: normal`. It returns JSON between `=== DESLOP_RESULT ===` and `=== END_RESULT ===`. If it lists `fixes`, hand them to `next-task:simple-fixer` with the commit message `fix: clean up AI slop`. Not installed: review the diff yourself for debug output, leftover TODOs, and dead code.
+- `deslop:deslop-agent` with `Mode: apply`, `Scope: diff` and `Base: origin/<base>`. It returns JSON between `=== DESLOP_RESULT ===` and `=== END_RESULT ===`; a result with an `error` field counts as not installed. Hand its `fixes` to `next-task:simple-fixer` with the commit message `fix: clean up leftovers (deslop)`.
+
+  When the findings carry a `check` field (deslop 2), keep the ones that have no fix and the ones whose fix simple-fixer reported `failed`, and give them to the Phase 9 round-1 reviewers as known issues. Findings on `(PR text)` go into the Phase 12 PR description instead. deslop 1.x findings (they carry `certainty`) stay in the report, as before.
+
+  Not installed: check that nothing outside the diff still names a file, flag or setting the diff removed or renamed, that paths and links the diff adds exist, that new comments do not record review history, and that every new test can fail. Fix what you find before Phase 9.
 - `prepare-delivery:test-coverage-checker` with the `test-gaps` context. Not installed: check that each changed source file has a test that exercises the change.
 - The `simplify` skill on the diff. Not available: skip.
 
@@ -99,7 +103,7 @@ Review the diff against the base with the Phase 9 repo-intel context. Size the r
 - Default: one reviewer covering correctness, security, performance, and tests.
 - Large or risky diffs (roughly 500+ changed lines, 15+ files, or high diff-risk or security-sensitive paths): up to 4 parallel reviewers, one per concern, optionally swapping one for a specialist the diff calls for (database, API, frontend, infra).
 
-Use `general-purpose` subagents on a fast tier (sonnet) if `Task` is available, otherwise review inline. Each reviewer returns a JSON array of `{file, line, severity: critical|high|medium|low, description, suggestion}`. Merge duplicates. Fix critical and high findings, and medium ones when the fix is small and clearly right. Commit the fixes, then re-review only what changed.
+Give round-1 reviewers the known issues carried from Phase 8: each one is confirmed and graded like any finding (a deslop `high` starts as high, `review` as medium) or dismissed with a reason in the report. Use `general-purpose` subagents on a fast tier (sonnet) if `Task` is available, otherwise review inline. Each reviewer returns a JSON array of `{file, line, severity: critical|high|medium|low, description, suggestion}`. Merge duplicates. Fix critical and high findings, and medium ones when the fix is small and clearly right. Commit the fixes, then re-review only what changed.
 
 Stop when no critical or high findings remain (approved), when the same findings come back twice (stalled), or after 3 rounds. A stalled or capped loop with open critical findings is blocked: report them and ask the user whether to continue, fix manually, or stop. Record `completePhase({ approved, iterations, remaining })`.
 

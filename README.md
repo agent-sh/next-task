@@ -61,7 +61,7 @@ The workflow has 12 phases. Phases 1-6 involve the user; phases 7-12 run autonom
 
 **Review loop** (Phase 9) sizes the review to the change: one reviewer covering correctness, security, performance, and tests by default, up to 4 parallel reviewers (one per concern, optionally a database, API, frontend, or infra specialist) for large or risky diffs. Critical and high findings are fixed; the loop stops when none remain, on a stall, or after 3 rounds.
 
-**Pre-review gates** (Phase 8) run deslop (AI slop cleanup) and test coverage checks in parallel before the review loop starts.
+**Pre-review gates** (Phase 8) run deslop (with deslop 2: leftovers of the change such as stale mentions, missing paths and anchors, tests that cannot fail) and test coverage checks in parallel before the review loop starts.
 
 **Stopping point** (Phase 12) follows the policy answer: stop after implementation, open the PR and stop, or hand off to `/ship` to merge and deploy.
 
@@ -106,7 +106,7 @@ Phases 8-10 use agents from the [prepare-delivery](https://github.com/agent-sh/p
 
 | Plugin | Used in |
 |--------|---------|
-| [deslop](https://github.com/agent-sh/deslop) | Phase 8 - AI slop cleanup (optional, inline fallback) |
+| [deslop](https://github.com/agent-sh/deslop) | Phase 8 - leftovers of the change with deslop 2, AI slop cleanup with 1.x (optional, inline fallback) |
 | [prepare-delivery](https://github.com/agent-sh/prepare-delivery) | Phases 8 and 10 - test coverage, delivery validation (optional, falls back to /delivery-approval) |
 | [sync-docs](https://github.com/agent-sh/sync-docs) | Phase 11 - documentation sync (optional, inline fallback) |
 | [ship](https://github.com/agent-sh/ship) | Phase 12 - PR creation, CI, merge (optional, falls back to opening the PR) |
