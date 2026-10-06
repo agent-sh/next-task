@@ -17,11 +17,11 @@ Apply each fix in the list exactly as given, then commit. Another agent already 
 ```json
 {
   "fixes": [
-    { "file": "src/api.ts", "line": 42, "action": "remove-line", "reason": "debug log" },
-    { "file": "src/utils.ts", "line": 15, "action": "replace", "old": "// TODO: later", "new": "", "reason": "stale TODO" },
+    { "file": "src/api.ts", "line": 42, "action": "remove-line", "reason": "review-provenance" },
+    { "file": "docs/setup.md", "line": 15, "action": "replace", "old": "scripts/old-install.sh", "new": "scripts/install.sh", "reason": "stale-mention" },
     { "file": "docs/README.md", "line": 10, "action": "insert-after", "new": "text", "reason": "..." }
   ],
-  "commitMessage": "fix: clean up AI slop"
+  "commitMessage": "fix: clean up leftovers (deslop)"
 }
 ```
 

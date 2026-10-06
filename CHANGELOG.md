@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Changed
-- Phase 8 calls `deslop:deslop-agent` with `Mode` and `Scope` only (deslop 2 has no thoroughness levels). Its fixes now match `simple-fixer`'s actions, and its findings without a fix go into the review loop. The fallback without deslop checks for leftover mentions of what the diff removed or renamed and for tests that cannot fail, which is what deslop 2 looks for.
+- Phase 8 calls `deslop:deslop-agent` with `Mode`, `Scope` and the run's base, and treats a result with an `error` field as not installed. With deslop 2 installed, its fixes go to `simple-fixer` as they are, and findings without a fix (or whose fix failed) go to the Phase 9 round-1 reviewers to confirm and grade; findings on the PR text go into the PR description. deslop 1.x findings stay in the report as before. The fallback without deslop now checks for leftover mentions of what the diff removed or renamed, missing paths and links, review history in comments and tests that cannot fail.
 
 ## [1.3.0] - 2026-10-06
 
