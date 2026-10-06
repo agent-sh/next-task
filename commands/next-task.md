@@ -88,7 +88,7 @@ Spawn `next-task:implementation-agent` with the approved plan and the worktree p
 
 Run these in parallel where the harness allows:
 
-- `deslop:deslop-agent` with `Mode: apply`, `Scope: diff`, `Thoroughness: normal`. It returns JSON between `=== DESLOP_RESULT ===` and `=== END_RESULT ===`. If it lists `fixes`, hand them to `next-task:simple-fixer` with the commit message `fix: clean up AI slop`. Not installed: review the diff yourself for debug output, leftover TODOs, and dead code.
+- `deslop:deslop-agent` with `Mode: apply` and `Scope: diff`. It returns JSON between `=== DESLOP_RESULT ===` and `=== END_RESULT ===`. If it lists `fixes`, hand them to `next-task:simple-fixer` with the commit message `fix: clean up leftovers (deslop)`; carry its `findings` that have no fix into the review loop as high findings. Not installed: check that nothing outside the diff still names a file, flag or setting the diff removed or renamed, and that every new test can fail.
 - `prepare-delivery:test-coverage-checker` with the `test-gaps` context. Not installed: check that each changed source file has a test that exercises the change.
 - The `simplify` skill on the diff. Not available: skip.
 
